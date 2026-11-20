@@ -1,4 +1,4 @@
-name: Sync Classical Composers (OpenOpus + MusicBrainz)
+name: Sync Classical Composers (OpenOpus + MusicBrainz + Metadata)
 
 on:
   # Runs automatically every day at 03:00 UTC
@@ -8,19 +8,20 @@ on:
   workflow_dispatch:
     inputs:
       source:
-        description: "Which source to sync"
+        description: "Which pipeline step to run"
         type: choice
         default: "all"
         options:
           - all
+          - enrich
           - musicbrainz
           - openopus
       batch_size:
-        description: "Composers per run (OpenOpus / MusicBrainz)"
+        description: "Items per run (composers for sync / works for enrich)"
         required: false
-        default: "20"
+        default: "40"
       max_works_per_composer:
-        description: "Max works per composer"
+        description: "Max works per composer (for OpenOpus / MusicBrainz)"
         required: false
         default: "40"
 
@@ -57,3 +58,11 @@ jobs:
           MB_BATCH_SIZE: ${{ github.event.inputs.batch_size || '20' }}
           MB_MAX_WORKS: ${{ github.event.inputs.max_works_per_composer || '40' }}
         run: node scripts/sync-musicbrainz.mjs
+
+      - name: Enrich missing work metadata (Wikipedia + Wikidata + MusicBrainz)
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.source == 'all' || github.event.inputs.source == 'enrich' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          ENRICH_BATCH_SIZE: ${{ github.event.inputs.batch_size || '60' }}
+        run: node scripts/enrich-works.mjs
