@@ -11,7 +11,7 @@ export default async function ExplorePage() {
       .from("composers")
       .select("*")
       .order("birth_year", { ascending: true }),
-    supabase.from("works").select("*"),
+    supabase.from("works").select("*").limit(2000),
     supabase.from("composer_relations").select("*"),
   ]);
 
@@ -23,13 +23,13 @@ export default async function ExplorePage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-12">
       {/* Header */}
       <div className="space-y-2">
-        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9a7432]">
+        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9a7432] dark:text-[#d4af6a]">
           Visual Atlas &amp; Dashboard
         </span>
-        <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[#1a1816]">
+        <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[#1a1816] dark:text-[#f3efe6]">
           Influence Graph &amp; Historical Analytics
         </h1>
-        <p className="text-sm text-stone-600 max-w-2xl">
+        <p className="text-sm text-stone-600 dark:text-stone-400 max-w-2xl">
           Explore teacher–student lineages, artistic influences, rivalries, and
           historical lifespan overlaps across the database.
         </p>
@@ -38,12 +38,12 @@ export default async function ExplorePage() {
       {/* Influence Graph Map */}
       <section className="space-y-3">
         <div>
-          <h2 className="font-serif text-2xl font-bold text-stone-900">
+          <h2 className="font-serif text-2xl font-bold text-stone-900 dark:text-[#f3efe6]">
             Composer Influence &amp; Lineage Map
           </h2>
-          <p className="text-xs text-stone-500 mt-0.5">
-            {composers.length} composers connected by {relations.length}{" "}
-            documented historical relationships
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+            {relations.length} documented historical relationships across key
+            composers
           </p>
         </div>
 

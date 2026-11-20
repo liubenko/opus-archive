@@ -53,7 +53,7 @@ export function ComposerDirectory({ composers }: ComposerDirectoryProps) {
   return (
     <section className="space-y-6">
       {/* Filter Controls */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-stone-200/80">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-stone-200/80 dark:border-stone-800/80">
         {/* Era Pills */}
         <div className="flex flex-wrap items-center gap-1.5">
           <button
@@ -61,8 +61,8 @@ export function ComposerDirectory({ composers }: ComposerDirectoryProps) {
             onClick={() => setSelectedEra("All")}
             className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
               selectedEra === "All"
-                ? "bg-[#1a1816] text-white"
-                : "bg-white border border-stone-200 text-stone-600 hover:border-stone-400"
+                ? "bg-[#1a1816] dark:bg-[#f3efe6] text-white dark:text-[#11100e]"
+                : "bg-white dark:bg-[#191714] border border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600"
             }`}
           >
             All Eras ({composers.length})
@@ -79,7 +79,7 @@ export function ComposerDirectory({ composers }: ComposerDirectoryProps) {
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
                   active
                     ? `${style.bg} ${style.border} ${style.text} ring-1 ring-inset ring-current/25`
-                    : "bg-white border-stone-200 text-stone-600 hover:border-stone-400"
+                    : "bg-white dark:bg-[#191714] border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600"
                 }`}
               >
                 <span className={`w-2 h-2 rounded-full ${style.color}`} />
@@ -92,34 +92,42 @@ export function ComposerDirectory({ composers }: ComposerDirectoryProps) {
 
         {/* Nationality + Sort */}
         <div className="flex flex-wrap items-center gap-2.5">
-          <div className="inline-flex items-center gap-1.5 bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs">
-            <Globe className="w-3.5 h-3.5 text-stone-400" />
+          <div className="inline-flex items-center gap-1.5 bg-white dark:bg-[#191714] border border-stone-200 dark:border-stone-800 rounded-lg px-2.5 py-1.5 text-xs">
+            <Globe className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500" />
             <select
               value={selectedNationality}
               onChange={(e) => setSelectedNationality(e.target.value)}
               aria-label="Filter by nationality"
-              className="bg-transparent text-stone-700 font-medium focus:outline-none cursor-pointer"
+              className="bg-transparent text-stone-700 dark:text-stone-200 font-medium focus:outline-none cursor-pointer"
             >
-              <option value="All">All Nationalities</option>
+              <option value="All" className="dark:bg-[#191714]">
+                All Nationalities
+              </option>
               {availableNationalities.map((nat) => (
-                <option key={nat} value={nat}>
+                <option key={nat} value={nat} className="dark:bg-[#191714]">
                   {nat}
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="inline-flex items-center gap-1.5 bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs">
-            <Filter className="w-3.5 h-3.5 text-stone-400" />
+          <div className="inline-flex items-center gap-1.5 bg-white dark:bg-[#191714] border border-stone-200 dark:border-stone-800 rounded-lg px-2.5 py-1.5 text-xs">
+            <Filter className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500" />
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortOption)}
               aria-label="Sort composers"
-              className="bg-transparent text-stone-700 font-medium focus:outline-none cursor-pointer"
+              className="bg-transparent text-stone-700 dark:text-stone-200 font-medium focus:outline-none cursor-pointer"
             >
-              <option value="chronological">Chronological (Birth Year)</option>
-              <option value="rank">Curated Top 20 Order</option>
-              <option value="alphabetical">Alphabetical (Last Name)</option>
+              <option value="chronological" className="dark:bg-[#191714]">
+                Chronological (Birth Year)
+              </option>
+              <option value="rank" className="dark:bg-[#191714]">
+                Curated Order
+              </option>
+              <option value="alphabetical" className="dark:bg-[#191714]">
+                Alphabetical (Last Name)
+              </option>
             </select>
           </div>
         </div>
@@ -127,8 +135,8 @@ export function ComposerDirectory({ composers }: ComposerDirectoryProps) {
 
       {/* Composer Grid */}
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-stone-200 p-12 text-center">
-          <p className="text-stone-600 text-sm">
+        <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200 dark:border-stone-800 p-12 text-center">
+          <p className="text-stone-600 dark:text-stone-400 text-sm">
             No composers match your selected filters.
           </p>
           <button
@@ -137,7 +145,7 @@ export function ComposerDirectory({ composers }: ComposerDirectoryProps) {
               setSelectedEra("All");
               setSelectedNationality("All");
             }}
-            className="mt-3 text-xs font-medium text-[#9a7432] hover:underline cursor-pointer"
+            className="mt-3 text-xs font-medium text-[#9a7432] dark:text-[#d4af6a] hover:underline cursor-pointer"
           >
             Reset filters
           </button>
@@ -152,7 +160,7 @@ export function ComposerDirectory({ composers }: ComposerDirectoryProps) {
               <Link
                 key={composer.id}
                 href={`/composers/${composer.slug}`}
-                className="group bg-white rounded-2xl border border-stone-200/90 p-5 hover:border-[#9a7432]/60 hover:shadow-md transition-all flex flex-col justify-between"
+                className="group bg-white dark:bg-[#191714] rounded-2xl border border-stone-200/90 dark:border-stone-800/90 p-5 hover:border-[#9a7432]/60 dark:hover:border-[#d4af6a]/60 hover:shadow-md dark:hover:shadow-black/40 transition-all flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-start gap-3.5">
@@ -172,27 +180,27 @@ export function ComposerDirectory({ composers }: ComposerDirectoryProps) {
                         />
                         {composer.era}
                       </span>
-                      <h2 className="font-serif text-lg font-semibold text-stone-900 group-hover:text-[#9a7432] transition-colors leading-snug mt-1.5">
+                      <h2 className="font-serif text-lg font-semibold text-stone-900 dark:text-[#f3efe6] group-hover:text-[#9a7432] dark:group-hover:text-[#d4af6a] transition-colors leading-snug mt-1.5">
                         {composer.name}
                       </h2>
-                      <p className="text-xs text-stone-500 mt-0.5">
+                      <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
                         {formatLifespan(composer.birth_year, composer.death_year)}{" "}
                         · {composer.nationality}
                       </p>
                     </div>
                   </div>
 
-                  <p className="mt-3.5 text-xs text-stone-600 leading-relaxed line-clamp-3">
+                  <p className="mt-3.5 text-xs text-stone-600 dark:text-stone-400 leading-relaxed line-clamp-3">
                     {composer.short_bio}
                   </p>
                 </div>
 
-                <div className="mt-4 pt-3.5 border-t border-stone-100 flex items-center justify-between text-xs">
-                  <span className="inline-flex items-center gap-1.5 text-stone-500 font-medium">
-                    <Music className="w-3.5 h-3.5 text-[#9a7432]" />
+                <div className="mt-4 pt-3.5 border-t border-stone-100 dark:border-stone-800/80 flex items-center justify-between text-xs">
+                  <span className="inline-flex items-center gap-1.5 text-stone-500 dark:text-stone-400 font-medium">
+                    <Music className="w-3.5 h-3.5 text-[#9a7432] dark:text-[#d4af6a]" />
                     {workCount} cataloged {workCount === 1 ? "work" : "works"}
                   </span>
-                  <span className="inline-flex items-center gap-1 font-medium text-stone-700 group-hover:text-[#9a7432] transition-colors">
+                  <span className="inline-flex items-center gap-1 font-medium text-stone-700 dark:text-stone-300 group-hover:text-[#9a7432] dark:group-hover:text-[#d4af6a] transition-colors">
                     Explore
                     <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                   </span>

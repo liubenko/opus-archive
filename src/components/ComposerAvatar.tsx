@@ -41,7 +41,7 @@ export function ComposerAvatar({
 
   return (
     <div
-      className={`${SIZE_CLASSES[size]} rounded-full overflow-hidden shrink-0 border border-stone-200 bg-stone-100 shadow-xs ${className}`}
+      className={`${SIZE_CLASSES[size]} rounded-full overflow-hidden shrink-0 border border-stone-200 dark:border-stone-700/80 bg-stone-100 dark:bg-stone-900 shadow-xs ${className}`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img

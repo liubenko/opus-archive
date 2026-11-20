@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --font-serif: var(--font-playfair), Georgia, "Times New Roman", serif;
   --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
@@ -14,6 +16,14 @@
   --accent-gold: #9a7432;
 }
 
+.dark {
+  --bg-parchment: #11100e;
+  --surface-card: #191714;
+  --ink-primary: #f3efe6;
+  --ink-muted: #a69e92;
+  --accent-gold: #d4af6a;
+}
+
 body {
   background-color: var(--bg-parchment);
   color: var(--ink-primary);
@@ -24,4 +34,9 @@ body {
 ::selection {
   background-color: #e9dec7;
   color: #1a1816;
+}
+
+.dark ::selection {
+  background-color: #4a3b1f;
+  color: #f3efe6;
 }

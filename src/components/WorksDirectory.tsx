@@ -70,16 +70,16 @@ export function WorksDirectory({ works }: WorksDirectoryProps) {
   return (
     <div className="space-y-5">
       {/* Filter Bar */}
-      <div className="bg-white rounded-2xl border border-stone-200/90 p-4 shadow-xs space-y-3">
+      <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200/90 dark:border-stone-800/90 p-4 shadow-xs space-y-3">
         <div className="flex flex-col md:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-stone-400 dark:text-stone-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Filter by title, nickname, composer, catalog number (Op., BWV, K., RV, D., S.)..."
-              className="w-full pl-10 pr-4 py-2.5 text-sm bg-[#faf8f4] border border-stone-200 rounded-xl focus:outline-none focus:bg-white focus:border-[#9a7432]"
+              className="w-full pl-10 pr-4 py-2.5 text-sm bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-[#141210] focus:border-[#9a7432] dark:focus:border-[#d4af6a]"
             />
           </div>
 
@@ -88,11 +88,13 @@ export function WorksDirectory({ works }: WorksDirectoryProps) {
               value={eraFilter}
               onChange={(e) => setEraFilter(e.target.value)}
               aria-label="Filter by era"
-              className="px-3 py-2.5 text-xs font-medium bg-[#faf8f4] border border-stone-200 rounded-xl text-stone-700 focus:outline-none focus:border-[#9a7432] cursor-pointer"
+              className="px-3 py-2.5 text-xs font-medium bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 rounded-xl text-stone-700 dark:text-stone-200 focus:outline-none focus:border-[#9a7432] dark:focus:border-[#d4af6a] cursor-pointer"
             >
-              <option value="All">All Eras</option>
+              <option value="All" className="dark:bg-[#191714]">
+                All Eras
+              </option>
               {ERA_ORDER.map((e) => (
-                <option key={e} value={e}>
+                <option key={e} value={e} className="dark:bg-[#191714]">
                   {e}
                 </option>
               ))}
@@ -102,11 +104,13 @@ export function WorksDirectory({ works }: WorksDirectoryProps) {
               value={genreFilter}
               onChange={(e) => setGenreFilter(e.target.value)}
               aria-label="Filter by genre"
-              className="px-3 py-2.5 text-xs font-medium bg-[#faf8f4] border border-stone-200 rounded-xl text-stone-700 focus:outline-none focus:border-[#9a7432] cursor-pointer"
+              className="px-3 py-2.5 text-xs font-medium bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 rounded-xl text-stone-700 dark:text-stone-200 focus:outline-none focus:border-[#9a7432] dark:focus:border-[#d4af6a] cursor-pointer"
             >
-              <option value="All">All Genres</option>
+              <option value="All" className="dark:bg-[#191714]">
+                All Genres
+              </option>
               {genres.map((g) => (
-                <option key={g} value={g}>
+                <option key={g} value={g} className="dark:bg-[#191714]">
                   {g}
                 </option>
               ))}
@@ -116,11 +120,13 @@ export function WorksDirectory({ works }: WorksDirectoryProps) {
               value={catalogFilter}
               onChange={(e) => setCatalogFilter(e.target.value)}
               aria-label="Filter by catalog system"
-              className="px-3 py-2.5 text-xs font-medium bg-[#faf8f4] border border-stone-200 rounded-xl text-stone-700 focus:outline-none focus:border-[#9a7432] cursor-pointer"
+              className="px-3 py-2.5 text-xs font-medium bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 rounded-xl text-stone-700 dark:text-stone-200 focus:outline-none focus:border-[#9a7432] dark:focus:border-[#d4af6a] cursor-pointer"
             >
-              <option value="All">All Catalogs</option>
+              <option value="All" className="dark:bg-[#191714]">
+                All Catalogs
+              </option>
               {catalogSystems.map((c) => (
-                <option key={c} value={c}>
+                <option key={c} value={c} className="dark:bg-[#191714]">
                   {c}
                 </option>
               ))}
@@ -131,8 +137,8 @@ export function WorksDirectory({ works }: WorksDirectoryProps) {
               onClick={() => setPopularOnly((v) => !v)}
               className={`inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-medium border transition-colors cursor-pointer ${
                 popularOnly
-                  ? "bg-amber-50 border-amber-300 text-amber-900"
-                  : "bg-[#faf8f4] border-stone-200 text-stone-700 hover:border-stone-400"
+                  ? "bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200"
+                  : "bg-[#faf8f4] dark:bg-[#141210] border-stone-200 dark:border-stone-800 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-600"
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
@@ -141,9 +147,12 @@ export function WorksDirectory({ works }: WorksDirectoryProps) {
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-stone-500 pt-1">
+        <div className="flex items-center justify-between text-xs text-stone-500 dark:text-stone-400 pt-1">
           <span>
-            Showing <strong className="text-stone-900">{filtered.length}</strong>{" "}
+            Showing{" "}
+            <strong className="text-stone-900 dark:text-stone-100">
+              {filtered.length}
+            </strong>{" "}
             of {works.length} cataloged works
           </span>
           {hasActiveFilters && (
@@ -156,7 +165,7 @@ export function WorksDirectory({ works }: WorksDirectoryProps) {
                 setCatalogFilter("All");
                 setPopularOnly(false);
               }}
-              className="inline-flex items-center gap-1 text-[#9a7432] hover:underline font-medium cursor-pointer"
+              className="inline-flex items-center gap-1 text-[#9a7432] dark:text-[#d4af6a] hover:underline font-medium cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
               Clear filters
@@ -166,11 +175,11 @@ export function WorksDirectory({ works }: WorksDirectoryProps) {
       </div>
 
       {/* Responsive Table */}
-      <div className="bg-white rounded-2xl border border-stone-200/90 shadow-xs overflow-hidden">
+      <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200/90 dark:border-stone-800/90 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-stone-200 bg-[#faf8f4]/80 text-[11px] font-semibold uppercase tracking-wider text-stone-500">
+              <tr className="border-b border-stone-200 dark:border-stone-800 bg-[#faf8f4]/80 dark:bg-[#141210] text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">
                 <th className="py-3.5 px-4">Catalog</th>
                 <th className="py-3.5 px-4">Work &amp; Nickname</th>
                 <th className="py-3.5 px-4">Composer</th>
@@ -180,12 +189,12 @@ export function WorksDirectory({ works }: WorksDirectoryProps) {
                 <th className="py-3.5 px-4 text-right">Dur.</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-stone-100 text-sm">
+            <tbody className="divide-y divide-stone-100 dark:divide-stone-800/80 text-sm">
               {filtered.length === 0 ? (
                 <tr>
                   <td
                     colSpan={7}
-                    className="py-12 px-4 text-center text-stone-500"
+                    className="py-12 px-4 text-center text-stone-500 dark:text-stone-400"
                   >
                     No works match your filters.
                   </td>
@@ -198,15 +207,17 @@ export function WorksDirectory({ works }: WorksDirectoryProps) {
                   return (
                     <tr
                       key={work.id}
-                      className="hover:bg-[#faf8f4]/70 transition-colors"
+                      className="hover:bg-[#faf8f4]/70 dark:hover:bg-[#221f1b]/80 transition-colors"
                     >
                       <td className="py-3.5 px-4 align-top whitespace-nowrap">
                         {work.catalog_display ? (
-                          <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-stone-100 text-stone-800 border border-stone-200/80">
+                          <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 border border-stone-200/80 dark:border-stone-700">
                             {work.catalog_display}
                           </span>
                         ) : (
-                          <span className="text-xs text-stone-400">—</span>
+                          <span className="text-xs text-stone-400 dark:text-stone-600">
+                            —
+                          </span>
                         )}
                       </td>
                       <td className="py-3.5 px-4 align-top max-w-md">
@@ -216,17 +227,17 @@ export function WorksDirectory({ works }: WorksDirectoryProps) {
                               ? `/composers/${composer.slug}#work-${work.id}`
                               : "#"
                           }
-                          className="font-serif font-semibold text-stone-900 hover:text-[#9a7432] transition-colors block leading-snug"
+                          className="font-serif font-semibold text-stone-900 dark:text-[#f3efe6] hover:text-[#9a7432] dark:hover:text-[#d4af6a] transition-colors block leading-snug"
                         >
                           {work.title}
                         </Link>
                         {work.nickname && (
-                          <span className="text-xs text-[#9a7432] block mt-0.5">
+                          <span className="text-xs text-[#9a7432] dark:text-[#d4af6a] block mt-0.5">
                             &ldquo;{work.nickname}&rdquo;
                           </span>
                         )}
                         {work.instrumentation && (
-                          <span className="text-[11px] text-stone-400 block mt-0.5">
+                          <span className="text-[11px] text-stone-400 dark:text-stone-500 block mt-0.5">
                             {work.instrumentation}
                           </span>
                         )}
@@ -236,7 +247,7 @@ export function WorksDirectory({ works }: WorksDirectoryProps) {
                           <div>
                             <Link
                               href={`/composers/${composer.slug}`}
-                              className="font-medium text-stone-800 hover:text-[#9a7432] transition-colors block"
+                              className="font-medium text-stone-800 dark:text-stone-200 hover:text-[#9a7432] dark:hover:text-[#d4af6a] transition-colors block"
                             >
                               {composer.name}
                             </Link>
@@ -251,20 +262,20 @@ export function WorksDirectory({ works }: WorksDirectoryProps) {
                         )}
                       </td>
                       <td className="py-3.5 px-4 align-top whitespace-nowrap">
-                        <span className="text-xs px-2.5 py-1 rounded-full bg-stone-100 text-stone-700 font-medium">
+                        <span className="text-xs px-2.5 py-1 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 font-medium">
                           {work.genre}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 align-top whitespace-nowrap text-xs text-stone-600">
+                      <td className="py-3.5 px-4 align-top whitespace-nowrap text-xs text-stone-600 dark:text-stone-400">
                         {work.key_signature ?? "—"}
                       </td>
-                      <td className="py-3.5 px-4 align-top whitespace-nowrap text-right font-mono text-xs text-stone-600">
+                      <td className="py-3.5 px-4 align-top whitespace-nowrap text-right font-mono text-xs text-stone-600 dark:text-stone-400">
                         {work.year_composed ?? "—"}
                       </td>
-                      <td className="py-3.5 px-4 align-top whitespace-nowrap text-right text-xs text-stone-500">
+                      <td className="py-3.5 px-4 align-top whitespace-nowrap text-right text-xs text-stone-500 dark:text-stone-400">
                         {work.duration_minutes ? (
                           <span className="inline-flex items-center justify-end gap-1">
-                            <Clock className="w-3 h-3 text-stone-400" />
+                            <Clock className="w-3 h-3 text-stone-400 dark:text-stone-500" />
                             {work.duration_minutes}m
                           </span>
                         ) : (

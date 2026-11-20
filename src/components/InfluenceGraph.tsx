@@ -32,21 +32,31 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
 
   const activeId = hoveredId ?? selectedId;
 
-  // Deterministic chronological-layered layout (X = birth year / era flow, Y = nicely staggered rows)
+  // Only plot composers that participate in at least one relation so the graph stays clean as the DB grows to 200+
+  const graphComposers = useMemo(() => {
+    const involvedIds = new Set<number>();
+    for (const r of relations) {
+      involvedIds.add(r.source_composer_id);
+      involvedIds.add(r.target_composer_id);
+    }
+    const list = composers.filter((c) => involvedIds.has(c.id));
+    return list.length > 0 ? list : composers.slice(0, 30);
+  }, [composers, relations]);
+
   const nodes = useMemo(() => {
-    const sorted = [...composers].sort((a, b) => a.birth_year - b.birth_year);
+    const sorted = [...graphComposers].sort(
+      (a, b) => a.birth_year - b.birth_year
+    );
     const minYear = Math.min(...sorted.map((c) => c.birth_year));
     const maxYear = Math.max(...sorted.map((c) => c.birth_year));
     const yearSpan = Math.max(1, maxYear - minYear);
 
-    // Group into columns by era/proximity to avoid overlapping labels
-    const ySlots = [0.16, 0.42, 0.68, 0.88, 0.28, 0.56, 0.8];
+    const ySlots = [0.14, 0.38, 0.64, 0.88, 0.26, 0.52, 0.78];
 
     return sorted.map((composer, index) => {
       const normalizedX = (composer.birth_year - minYear) / yearSpan;
-      // Blend chronological X (75%) with even rank spacing (25%) to avoid crowded romantic clusters
       const rankX = sorted.length > 1 ? index / (sorted.length - 1) : 0.5;
-      const blendedX = normalizedX * 0.62 + rankX * 0.38;
+      const blendedX = normalizedX * 0.6 + rankX * 0.4;
 
       const x = PAD_X + blendedX * (SVG_WIDTH - PAD_X * 2);
       const yRatio = ySlots[index % ySlots.length];
@@ -54,7 +64,7 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
 
       return { composer, x, y };
     });
-  }, [composers]);
+  }, [graphComposers]);
 
   const nodeById = useMemo(() => {
     const map = new Map<number, { composer: Composer; x: number; y: number }>();
@@ -119,9 +129,9 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
   return (
     <div className="space-y-4">
       {/* Legend & Filter Chips */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-2xl border border-stone-200/90 px-4 py-3 shadow-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-[#191714] rounded-2xl border border-stone-200/90 dark:border-stone-800/90 px-4 py-3 shadow-xs">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-stone-400 mr-1">
+          <span className="text-xs font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-500 mr-1">
             Connections:
           </span>
           {Object.entries(RELATION_META).map(([key, meta]) => {
@@ -136,7 +146,7 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer ${
                   enabled
                     ? meta.badgeClass
-                    : "bg-stone-50 text-stone-400 border-stone-200 opacity-60"
+                    : "bg-stone-50 dark:bg-stone-900 text-stone-400 dark:text-stone-600 border-stone-200 dark:border-stone-800 opacity-60"
                 }`}
               >
                 <span
@@ -153,7 +163,7 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
           <button
             type="button"
             onClick={() => setSelectedId(null)}
-            className="inline-flex items-center gap-1 text-xs font-medium text-stone-600 hover:text-stone-900 cursor-pointer"
+            className="inline-flex items-center gap-1 text-xs font-medium text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Reset selection
@@ -163,17 +173,17 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
 
       {/* Main Graph + Inspector Split */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-stone-200/90 shadow-xs overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-stone-100 flex items-center justify-between text-xs text-stone-500">
+        <div className="lg:col-span-2 bg-white dark:bg-[#191714] rounded-2xl border border-stone-200/90 dark:border-stone-800/90 shadow-xs overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400">
             <span>
               Click any composer node to inspect influences &amp; lineages
             </span>
-            <span className="font-mono text-[11px] text-stone-400">
-              1678 Baroque → 1971 20th Century
+            <span className="font-mono text-[11px] text-stone-400 dark:text-stone-500">
+              Baroque → Classical → Romantic → 20th Century
             </span>
           </div>
 
-          <div className="w-full overflow-x-auto bg-gradient-to-br from-[#fdfcf9] via-[#faf7f0] to-[#f6f1e6]">
+          <div className="w-full overflow-x-auto bg-gradient-to-br from-[#fdfcf9] via-[#faf7f0] to-[#f6f1e6] dark:from-[#151311] dark:via-[#12110f] dark:to-[#181511]">
             <svg
               viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
               className="w-full min-w-[740px] h-auto select-none"
@@ -197,7 +207,7 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
                 ))}
               </defs>
 
-              {/* Subtle vertical era bands */}
+              {/* Subtle vertical era dividers */}
               {[0.18, 0.42, 0.72].map((ratio, idx) => (
                 <line
                   key={idx}
@@ -205,7 +215,8 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
                   y1={24}
                   x2={SVG_WIDTH * ratio}
                   y2={SVG_HEIGHT - 24}
-                  stroke="#e7e2d8"
+                  stroke="currentColor"
+                  className="text-stone-200 dark:text-stone-800"
                   strokeDasharray="4 4"
                 />
               ))}
@@ -245,7 +256,7 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
                         : Math.max(1.1, rel.strength * 0.35)
                     }
                     strokeOpacity={
-                      activeId === null ? 0.32 : isHighlighted ? 0.88 : 0.06
+                      activeId === null ? 0.36 : isHighlighted ? 0.92 : 0.08
                     }
                     strokeDasharray={
                       rel.relation_type === "contemporary_of"
@@ -282,28 +293,25 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
                     onMouseEnter={() => setHoveredId(composer.id)}
                     onMouseLeave={() => setHoveredId(null)}
                     className="cursor-pointer transition-opacity duration-200"
-                    opacity={isDimmed ? 0.22 : 1}
+                    opacity={isDimmed ? 0.2 : 1}
                   >
-                    {/* Outer halo when selected */}
                     {isSelected && (
                       <circle
                         r={26}
                         fill="none"
                         stroke={eraStyle.hex}
                         strokeWidth={2.5}
-                        strokeOpacity={0.5}
+                        strokeOpacity={0.6}
                       />
                     )}
 
-                    {/* Node circle */}
                     <circle
                       r={isSelected ? 20 : 17}
-                      fill="#ffffff"
+                      className="fill-white dark:fill-[#1c1916]"
                       stroke={eraStyle.hex}
                       strokeWidth={isSelected ? 3.5 : 2.5}
                     />
 
-                    {/* Monogram */}
                     <text
                       textAnchor="middle"
                       dy="0.35em"
@@ -315,7 +323,6 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
                       {getInitials(composer.name)}
                     </text>
 
-                    {/* Label pill */}
                     <g transform="translate(0, 31)">
                       <rect
                         x={-44}
@@ -323,9 +330,11 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
                         width={88}
                         height={19}
                         rx={9.5}
-                        fill={isSelected ? "#1a1816" : "#ffffff"}
-                        fillOpacity={isSelected ? 0.95 : 0.9}
-                        stroke={isSelected ? "#1a1816" : "#e7e2d8"}
+                        className={
+                          isSelected
+                            ? "fill-[#1a1816] dark:fill-[#f3efe6] stroke-[#1a1816] dark:stroke-[#f3efe6]"
+                            : "fill-white/95 dark:fill-[#1d1a17]/95 stroke-stone-200 dark:stroke-stone-700"
+                        }
                         strokeWidth={1}
                       />
                       <text
@@ -333,7 +342,11 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
                         dy="0.28em"
                         fontSize="10.5"
                         fontWeight={isSelected ? "600" : "500"}
-                        fill={isSelected ? "#faf8f4" : "#1a1816"}
+                        className={
+                          isSelected
+                            ? "fill-[#faf8f4] dark:fill-[#11100e]"
+                            : "fill-[#1a1816] dark:fill-[#f3efe6]"
+                        }
                       >
                         {lastName}
                       </text>
@@ -345,11 +358,13 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
           </div>
 
           {/* Era Color Key */}
-          <div className="px-4 py-2.5 border-t border-stone-100 flex flex-wrap items-center gap-3 text-[11px] text-stone-500">
-            <span className="font-semibold text-stone-400 uppercase tracking-wider">
+          <div className="px-4 py-2.5 border-t border-stone-100 dark:border-stone-800 flex flex-wrap items-center gap-3 text-[11px] text-stone-500 dark:text-stone-400">
+            <span className="font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider">
               Eras:
             </span>
-            {ERA_ORDER.map((era) => {
+            {ERA_ORDER.filter((era) =>
+              graphComposers.some((c) => c.era === era)
+            ).map((era) => {
               const s = getEraStyle(era);
               return (
                 <span key={era} className="inline-flex items-center gap-1.5">
@@ -365,7 +380,7 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
         </div>
 
         {/* Right Side Inspector */}
-        <div className="bg-white rounded-2xl border border-stone-200/90 p-5 shadow-xs space-y-4">
+        <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200/90 dark:border-stone-800/90 p-5 shadow-xs space-y-4">
           {selectedComposer ? (
             <>
               <div className="flex items-start gap-3">
@@ -376,10 +391,10 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
                   size="md"
                 />
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-serif text-lg font-semibold text-stone-900 leading-snug">
+                  <h3 className="font-serif text-lg font-semibold text-stone-900 dark:text-[#f3efe6] leading-snug">
                     {selectedComposer.name}
                   </h3>
-                  <p className="text-xs text-stone-500">
+                  <p className="text-xs text-stone-500 dark:text-stone-400">
                     {formatLifespan(
                       selectedComposer.birth_year,
                       selectedComposer.death_year
@@ -391,15 +406,15 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
 
               <Link
                 href={`/composers/${selectedComposer.slug}`}
-                className="inline-flex items-center justify-center gap-1.5 w-full px-3.5 py-2 rounded-xl bg-[#1a1816] text-white text-xs font-medium hover:bg-stone-800 transition-colors"
+                className="inline-flex items-center justify-center gap-1.5 w-full px-3.5 py-2 rounded-xl bg-[#1a1816] dark:bg-[#f3efe6] text-white dark:text-[#11100e] text-xs font-medium hover:opacity-90 transition-opacity"
               >
                 Open Composer Profile &amp; Works
                 <ArrowUpRight className="w-3.5 h-3.5" />
               </Link>
 
               {selectedEdges.outgoing.length > 0 && (
-                <div className="space-y-2 pt-2 border-t border-stone-100">
-                  <h4 className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                <div className="space-y-2 pt-2 border-t border-stone-100 dark:border-stone-800">
+                  <h4 className="text-[11px] font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-500">
                     Outgoing Connections ({selectedEdges.outgoing.length})
                   </h4>
                   <div className="space-y-2">
@@ -408,13 +423,13 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
                       return (
                         <div
                           key={relation.id}
-                          className="p-2.5 rounded-xl bg-[#faf8f4] border border-stone-200/70 space-y-1"
+                          className="p-2.5 rounded-xl bg-[#faf8f4] dark:bg-[#141210] border border-stone-200/70 dark:border-stone-800 space-y-1"
                         >
                           <div className="flex items-center justify-between gap-2">
                             <button
                               type="button"
                               onClick={() => setSelectedId(other.id)}
-                              className="font-serif font-semibold text-sm text-stone-900 hover:text-[#9a7432] cursor-pointer text-left"
+                              className="font-serif font-semibold text-sm text-stone-900 dark:text-[#f3efe6] hover:text-[#9a7432] dark:hover:text-[#d4af6a] cursor-pointer text-left"
                             >
                               {other.name}
                             </button>
@@ -425,7 +440,7 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
                             </span>
                           </div>
                           {relation.description && (
-                            <p className="text-xs text-stone-600 leading-relaxed">
+                            <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
                               {relation.description}
                             </p>
                           )}
@@ -437,8 +452,8 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
               )}
 
               {selectedEdges.incoming.length > 0 && (
-                <div className="space-y-2 pt-2 border-t border-stone-100">
-                  <h4 className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                <div className="space-y-2 pt-2 border-t border-stone-100 dark:border-stone-800">
+                  <h4 className="text-[11px] font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-500">
                     Incoming Roots ({selectedEdges.incoming.length})
                   </h4>
                   <div className="space-y-2">
@@ -447,13 +462,13 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
                       return (
                         <div
                           key={relation.id}
-                          className="p-2.5 rounded-xl bg-[#faf8f4] border border-stone-200/70 space-y-1"
+                          className="p-2.5 rounded-xl bg-[#faf8f4] dark:bg-[#141210] border border-stone-200/70 dark:border-stone-800 space-y-1"
                         >
                           <div className="flex items-center justify-between gap-2">
                             <button
                               type="button"
                               onClick={() => setSelectedId(other.id)}
-                              className="font-serif font-semibold text-sm text-stone-900 hover:text-[#9a7432] cursor-pointer text-left"
+                              className="font-serif font-semibold text-sm text-stone-900 dark:text-[#f3efe6] hover:text-[#9a7432] dark:hover:text-[#d4af6a] cursor-pointer text-left"
                             >
                               {other.name}
                             </button>
@@ -464,7 +479,7 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
                             </span>
                           </div>
                           {relation.description && (
-                            <p className="text-xs text-stone-600 leading-relaxed">
+                            <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
                               {relation.description}
                             </p>
                           )}
@@ -477,21 +492,21 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
             </>
           ) : (
             <div className="py-6 text-center space-y-3">
-              <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-800 border border-amber-200 flex items-center justify-center mx-auto">
+              <div className="w-10 h-10 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-[#d4af6a] border border-amber-200 dark:border-amber-800/70 flex items-center justify-center mx-auto">
                 <Sparkles className="w-5 h-5" />
               </div>
-              <h3 className="font-serif text-base font-semibold text-stone-900">
+              <h3 className="font-serif text-base font-semibold text-stone-900 dark:text-[#f3efe6]">
                 Musical Lineage Inspector
               </h3>
-              <p className="text-xs text-stone-500 leading-relaxed">
+              <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
                 Select any composer on the map to spotlight their teachers,
-                influences, contemporaries, and historical lineage across 300
-                years of classical music.
+                influences, contemporaries, and historical lineage across
+                centuries of classical music.
               </p>
               <div className="pt-2 flex flex-wrap justify-center gap-1.5">
                 {["Bach", "Beethoven", "Chopin", "Wagner", "Debussy"].map(
                   (shortName) => {
-                    const match = composers.find((c) =>
+                    const match = graphComposers.find((c) =>
                       c.name.includes(shortName)
                     );
                     if (!match) return null;
@@ -500,7 +515,7 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
                         key={match.id}
                         type="button"
                         onClick={() => setSelectedId(match.id)}
-                        className="px-2.5 py-1 rounded-full text-xs bg-[#faf8f4] border border-stone-200 hover:border-[#9a7432] text-stone-700 cursor-pointer"
+                        className="px-2.5 py-1 rounded-full text-xs bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-700 hover:border-[#9a7432] dark:hover:border-[#d4af6a] text-stone-700 dark:text-stone-200 cursor-pointer"
                       >
                         Focus {shortName}
                       </button>

@@ -16,10 +16,16 @@ export function AnalyticsDashboard({
 }: AnalyticsDashboardProps) {
   const timeline = useMemo(() => {
     const sorted = [...composers].sort((a, b) => a.birth_year - b.birth_year);
-    const minYear = 1670;
-    const maxYear = 1980;
-    const span = maxYear - minYear;
-    return { sorted, minYear, maxYear, span };
+    const minBirth = sorted[0]?.birth_year ?? 1670;
+    const minYear = Math.floor(minBirth / 50) * 50;
+    const maxYear = 2000;
+    const span = Math.max(100, maxYear - minYear);
+    const ticks: number[] = [];
+    const step = span > 500 ? 100 : 50;
+    for (let y = minYear + step; y < maxYear; y += step) {
+      ticks.push(y);
+    }
+    return { sorted, minYear, maxYear, span, ticks };
   }, [composers]);
 
   const genreStats = useMemo(() => {
@@ -59,33 +65,31 @@ export function AnalyticsDashboard({
     })).filter((e) => e.composers > 0);
   }, [composers, works]);
 
-  const ticks = [1700, 1750, 1800, 1850, 1900, 1950];
-
   return (
     <div className="space-y-8">
       {/* Lifespan Overlap Timeline */}
-      <div className="bg-white rounded-2xl border border-stone-200/90 p-5 sm:p-6 shadow-xs">
+      <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200/90 dark:border-stone-800/90 p-5 sm:p-6 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 mb-5">
           <div>
-            <h2 className="font-serif text-xl font-semibold text-stone-900">
-              Composer Lifespan Timeline (1678–1971)
+            <h2 className="font-serif text-xl font-semibold text-stone-900 dark:text-[#f3efe6]">
+              Composer Lifespan Timeline
             </h2>
-            <p className="text-xs text-stone-500 mt-0.5">
-              See which composers lived as contemporaries across three centuries
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+              See which composers lived as contemporaries across musical history
             </p>
           </div>
-          <span className="text-xs font-mono text-stone-400">
+          <span className="text-xs font-mono text-stone-400 dark:text-stone-500">
             Click any bar to open composer
           </span>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[560px] overflow-y-auto">
           <div className="min-w-[680px]">
             {/* Year header */}
-            <div className="grid grid-cols-[190px_1fr] items-center pb-2 border-b border-stone-200 text-[11px] font-mono text-stone-400">
+            <div className="sticky top-0 z-10 bg-white dark:bg-[#191714] grid grid-cols-[190px_1fr] items-center pb-2 border-b border-stone-200 dark:border-stone-800 text-[11px] font-mono text-stone-400 dark:text-stone-500">
               <span>Composer</span>
               <div className="relative h-5">
-                {ticks.map((year) => {
+                {timeline.ticks.map((year) => {
                   const pct =
                     ((year - timeline.minYear) / timeline.span) * 100;
                   return (
@@ -102,7 +106,7 @@ export function AnalyticsDashboard({
             </div>
 
             {/* Rows */}
-            <div className="divide-y divide-stone-100">
+            <div className="divide-y divide-stone-100 dark:divide-stone-800/70">
               {timeline.sorted.map((composer) => {
                 const startPct =
                   ((composer.birth_year - timeline.minYear) / timeline.span) *
@@ -121,28 +125,26 @@ export function AnalyticsDashboard({
                   <Link
                     key={composer.id}
                     href={`/composers/${composer.slug}`}
-                    className="grid grid-cols-[190px_1fr] items-center py-2 hover:bg-[#faf8f4] transition-colors group"
+                    className="grid grid-cols-[190px_1fr] items-center py-2 hover:bg-[#faf8f4] dark:hover:bg-[#221f1b] transition-colors group"
                   >
                     <div className="pr-3 truncate">
-                      <span className="text-xs font-medium text-stone-800 group-hover:text-[#9a7432] transition-colors">
+                      <span className="text-xs font-medium text-stone-800 dark:text-stone-200 group-hover:text-[#9a7432] dark:group-hover:text-[#d4af6a] transition-colors">
                         {composer.name}
                       </span>
                     </div>
                     <div className="relative h-6 flex items-center">
-                      {/* Gridlines */}
-                      {ticks.map((year) => {
+                      {timeline.ticks.map((year) => {
                         const pct =
                           ((year - timeline.minYear) / timeline.span) * 100;
                         return (
                           <span
                             key={year}
                             style={{ left: `${pct}%` }}
-                            className="absolute top-0 bottom-0 w-px bg-stone-100"
+                            className="absolute top-0 bottom-0 w-px bg-stone-100 dark:bg-stone-800/80"
                           />
                         );
                       })}
 
-                      {/* Lifespan bar */}
                       <div
                         style={{
                           left: `${startPct}%`,
@@ -174,11 +176,11 @@ export function AnalyticsDashboard({
       {/* Distribution Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Works by Genre */}
-        <div className="bg-white rounded-2xl border border-stone-200/90 p-5 sm:p-6 shadow-xs">
-          <h3 className="font-serif text-lg font-semibold text-stone-900">
+        <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200/90 dark:border-stone-800/90 p-5 sm:p-6 shadow-xs">
+          <h3 className="font-serif text-lg font-semibold text-stone-900 dark:text-[#f3efe6]">
             Cataloged Works by Genre
           </h3>
-          <p className="text-xs text-stone-500 mt-0.5 mb-4">
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5 mb-4">
             Distribution across {works.length} works in the database
           </p>
           <div className="space-y-3">
@@ -187,12 +189,16 @@ export function AnalyticsDashboard({
               return (
                 <div key={genre} className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-stone-800">{genre}</span>
-                    <span className="font-mono text-stone-500">{count}</span>
+                    <span className="font-medium text-stone-800 dark:text-stone-200">
+                      {genre}
+                    </span>
+                    <span className="font-mono text-stone-500 dark:text-stone-400">
+                      {count}
+                    </span>
                   </div>
-                  <div className="h-2 rounded-full bg-stone-100 overflow-hidden">
+                  <div className="h-2 rounded-full bg-stone-100 dark:bg-stone-800 overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-[#9a7432]"
+                      className="h-full rounded-full bg-[#9a7432] dark:bg-[#d4af6a]"
                       style={{ width: `${width}%` }}
                     />
                   </div>
@@ -203,11 +209,11 @@ export function AnalyticsDashboard({
         </div>
 
         {/* Composers & Works by Era */}
-        <div className="bg-white rounded-2xl border border-stone-200/90 p-5 sm:p-6 shadow-xs">
-          <h3 className="font-serif text-lg font-semibold text-stone-900">
+        <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200/90 dark:border-stone-800/90 p-5 sm:p-6 shadow-xs">
+          <h3 className="font-serif text-lg font-semibold text-stone-900 dark:text-[#f3efe6]">
             Coverage by Historical Era
           </h3>
-          <p className="text-xs text-stone-500 mt-0.5 mb-4">
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5 mb-4">
             Composers and works represented per musical period
           </p>
           <div className="space-y-3">
@@ -217,23 +223,28 @@ export function AnalyticsDashboard({
               return (
                 <div
                   key={era}
-                  className="p-3 rounded-xl bg-[#faf8f4] border border-stone-200/70"
+                  className="p-3 rounded-xl bg-[#faf8f4] dark:bg-[#141210] border border-stone-200/70 dark:border-stone-800"
                 >
                   <div className="flex items-center justify-between text-xs mb-1.5">
-                    <span className="inline-flex items-center gap-2 font-semibold text-stone-900">
+                    <span className="inline-flex items-center gap-2 font-semibold text-stone-900 dark:text-stone-100">
                       <span
                         className="w-2.5 h-2.5 rounded-full"
                         style={{ backgroundColor: eraStyle.hex }}
                       />
                       {era}
                     </span>
-                    <span className="text-stone-500">
-                      <strong className="text-stone-800">{cCount}</strong>{" "}
+                    <span className="text-stone-500 dark:text-stone-400">
+                      <strong className="text-stone-800 dark:text-stone-200">
+                        {cCount}
+                      </strong>{" "}
                       {cCount === 1 ? "composer" : "composers"} ·{" "}
-                      <strong className="text-stone-800">{wCount}</strong> works
+                      <strong className="text-stone-800 dark:text-stone-200">
+                        {wCount}
+                      </strong>{" "}
+                      works
                     </span>
                   </div>
-                  <div className="h-1.5 rounded-full bg-stone-200/80 overflow-hidden">
+                  <div className="h-1.5 rounded-full bg-stone-200/80 dark:bg-stone-800 overflow-hidden">
                     <div
                       className="h-full rounded-full"
                       style={{
