@@ -2,10 +2,8 @@
 /**
  * Incremental Classical Music Sync Script (OpenOpus + Wikipedia -> Supabase)
  *
- * Fetches composers and their cataloged works from the open-source OpenOpus API,
- * enriches biographies via Wikipedia's REST API, extracts opus/thematic catalog
- * numbers (Op., BWV, K., Hob., RV, D., S., WWV, HWV, L., M., WoO, etc.), and
- * upserts a clean batch into the Supabase `composers` database.
+ * Uses shared multi-layer deduplication (scripts/lib/dedup.mjs) so composers
+ * and works are never duplicated across repeated runs or across OpenOpus + MusicBrainz.
  *
  * Environment variables:
  *   SUPABASE_URL                - e.g. https://iyfzoobqtegrrvexcqkk.supabase.co
@@ -15,6 +13,15 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import {
+  buildComposerMatcher,
+  buildWorkMatcher,
+  extractCatalog,
+  extractKey,
+  mapWorkGenre,
+  normalizeText,
+  slugify,
+} from "./lib/dedup.mjs";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SECRET_KEY =
@@ -28,6 +35,13 @@ const MAX_WORKS_PER_COMPOSER = Math.max(
 if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
   console.error(
     "Missing SUPABASE_URL or SUPABASE_SECRET_KEY environment variables."
+  );
+  process.exit(1);
+}
+
+if (SUPABASE_SECRET_KEY.startsWith("sb_publishable_")) {
+  console.error(
+    "SUPABASE_SECRET_KEY starts with 'sb_publishable_' (read-only). Please use your 'sb_secret_...' or 'service_role' key."
   );
   process.exit(1);
 }
@@ -75,15 +89,6 @@ function mapEra(epoch) {
   }
 }
 
-function slugify(text) {
-  return text
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
 function parseYear(dateStr) {
   if (!dateStr) return null;
   const match = String(dateStr).match(/(\d{4})/);
@@ -96,72 +101,6 @@ function toSortName(completeName, shortName) {
   const last = shortName || parts[parts.length - 1];
   const rest = completeName.replace(new RegExp(`\\b${last}$`), "").trim();
   return rest ? `${last}, ${rest}` : completeName;
-}
-
-const CATALOG_REGEX =
-  /\b(Op\.?\s*\d+[a-z]?(?:,\s*No\.?\s*\d+)?|BWV\s*\d+[a-z]?|K\.?\s*\d+[a-z]?|KV\.?\s*\d+[a-z]?|Hob\.?\s*[IVXLCa-z]+:\s*\d+[a-z]?|RV\s*\d+[a-z]?|D\.?\s*\d+[a-z]?|S\.?\s*\d+(?:\/\d+)?|WWV\s*\d+[A-Z]?|WoO\s*\d+(?:,\s*No\.?\s*\d+)?|HWV\s*\d+[a-z]?|L\.?\s*\d+|M\.?\s*\d+|Z\.?\s*\d+|Sz\.?\s*\d+|TWV\s*\d+:\w+)\b/i;
-
-function extractCatalog(title) {
-  const match = title.match(CATALOG_REGEX);
-  if (!match) return { catalog_system: null, catalog_number: null };
-  const raw = match[1].trim();
-  const sysMatch = raw.match(/^([A-Za-z]+\.?)\s*(.+)$/);
-  if (!sysMatch) return { catalog_system: null, catalog_number: raw };
-  let system = sysMatch[1];
-  if (/^op\.?$/i.test(system)) system = "Op.";
-  else if (/^kv\.?$/i.test(system) || /^k\.?$/i.test(system)) system = "K.";
-  else if (/^hob\.?$/i.test(system)) system = "Hob.";
-  else if (/^d\.?$/i.test(system)) system = "D.";
-  else if (/^s\.?$/i.test(system)) system = "S.";
-  else if (/^l\.?$/i.test(system)) system = "L.";
-  else if (/^m\.?$/i.test(system)) system = "M.";
-  else if (/^z\.?$/i.test(system)) system = "Z.";
-  else if (/^sz\.?$/i.test(system)) system = "Sz.";
-  else if (/^woo$/i.test(system)) system = "WoO";
-  else system = system.toUpperCase();
-
-  return {
-    catalog_system: system,
-    catalog_number: sysMatch[2].trim(),
-  };
-}
-
-function mapGenre(openOpusGenre, title) {
-  const lower = title.toLowerCase();
-  if (lower.includes("symphony") || lower.includes("sinfonia")) return "Symphony";
-  if (lower.includes("concerto")) return "Concerto";
-  if (lower.includes("ballet")) return "Ballet";
-  if (
-    lower.includes("requiem") ||
-    lower.includes("mass ") ||
-    lower.includes("stabat mater") ||
-    lower.includes("magnificat") ||
-    lower.includes("passion") ||
-    lower.includes("oratorio")
-  ) {
-    return "Sacred";
-  }
-  switch (openOpusGenre) {
-    case "Keyboard":
-      return "Piano Solo";
-    case "Chamber":
-      return "Chamber";
-    case "Stage":
-      return "Opera";
-    case "Vocal":
-      return "Choral & Vocal";
-    case "Orchestral":
-      return "Orchestral";
-    default:
-      return "Orchestral";
-  }
-}
-
-function extractKey(title) {
-  const match = title.match(
-    /\bin\s+([A-G](?:-flat|-sharp| flat| sharp|♭|♯)?\s+(?:major|minor))\b/i
-  );
-  return match ? match[1] : null;
 }
 
 async function fetchJson(url) {
@@ -179,7 +118,6 @@ async function fetchWikipediaSummary(completeName) {
   );
   if (!data || !data.extract) return null;
 
-  // Try to extract nationality from the first sentence (e.g. "was a German composer")
   const natMatch = data.extract.match(
     /\b(?:was|is)\s+an?\s+([A-Z][a-z]+(?:-[A-Z][a-z]+)?)\s+(?:composer|pianist|violinist|organist|conductor|Baroque|Classical|Romantic)/
   );
@@ -201,25 +139,19 @@ async function main() {
     `Starting OpenOpus sync (batch size: ${BATCH_SIZE}, max works/composer: ${MAX_WORKS_PER_COMPOSER})...`
   );
 
-  // 1. Load existing composer slugs & names from Supabase
+  // 1. Load existing composers and build multi-layer deduplicator
   const { data: existingComposers, error: existingErr } = await supabase
     .from("composers")
-    .select("id, slug, name, full_name");
+    .select("id, slug, name, full_name, sort_name, birth_year, death_year, openopus_id, musicbrainz_id");
 
   if (existingErr) {
     throw new Error(`Failed to fetch existing composers: ${existingErr.message}`);
   }
 
-  const existingSlugs = new Set(existingComposers.map((c) => c.slug));
-  const existingNames = new Set(
-    existingComposers.flatMap((c) => [
-      c.name.toLowerCase(),
-      (c.full_name || "").toLowerCase(),
-    ])
-  );
-  console.log(`Currently ${existingSlugs.size} composers in Supabase.`);
+  const composerMatcher = buildComposerMatcher(existingComposers ?? []);
+  console.log(`Currently ${(existingComposers ?? []).length} composers in Supabase.`);
 
-  // 2. Fetch composer directory from OpenOpus (popular first, then all epochs)
+  // 2. Fetch composer directory from OpenOpus
   const candidates = [];
   const seenOpenOpusIds = new Set();
 
@@ -248,19 +180,36 @@ async function main() {
 
   console.log(`Discovered ${candidates.length} total composers in OpenOpus.`);
 
-  // 3. Pick next batch of composers not yet in Supabase
+  // 3. Pick next batch of composers not yet in Supabase (using multi-layer dedup)
   const toImport = [];
   for (const c of candidates) {
+    const birthYear = parseYear(c.birth);
+    const deathYear = parseYear(c.death);
+    if (!birthYear) continue;
+
     const slug = slugify(c.complete_name || c.name);
-    if (
-      existingSlugs.has(slug) ||
-      existingNames.has((c.complete_name || "").toLowerCase())
-    ) {
+    const existing = composerMatcher.findMatch({
+      openopus_id: c.id,
+      slug,
+      name: c.complete_name,
+      full_name: c.complete_name,
+      sort_name: toSortName(c.complete_name, c.name),
+      birth_year: birthYear,
+      death_year: deathYear,
+    });
+
+    if (existing) {
+      // Backfill openopus_id on existing composer if missing
+      if (!existing.openopus_id) {
+        await supabase
+          .from("composers")
+          .update({ openopus_id: String(c.id) })
+          .eq("id", existing.id);
+      }
       continue;
     }
-    const birthYear = parseYear(c.birth);
-    if (!birthYear) continue;
-    toImport.push({ ...c, slug, birthYear, deathYear: parseYear(c.death) });
+
+    toImport.push({ ...c, slug, birthYear, deathYear });
     if (toImport.length >= BATCH_SIZE) break;
   }
 
@@ -281,24 +230,24 @@ async function main() {
       wiki?.bio ||
       `${c.complete_name} (${c.birthYear}${c.deathYear ? `–${c.deathYear}` : ""}) was a ${era} composer featured in the OpenOpus classical repertoire.`;
 
+    const newComposerRow = {
+      slug: c.slug,
+      name: c.complete_name,
+      full_name: c.complete_name,
+      sort_name: toSortName(c.complete_name, c.name),
+      era,
+      nationality: wiki?.nationality || "European",
+      birth_year: c.birthYear,
+      death_year: c.deathYear,
+      avatar_url: c.portrait || wiki?.thumbnail || null,
+      short_bio: shortBio,
+      notable_for: wiki?.description || `${era} composer`,
+      openopus_id: String(c.id),
+    };
+
     const { data: inserted, error: compErr } = await supabase
       .from("composers")
-      .upsert(
-        {
-          slug: c.slug,
-          name: c.complete_name,
-          full_name: c.complete_name,
-          sort_name: toSortName(c.complete_name, c.name),
-          era,
-          nationality: wiki?.nationality || "European",
-          birth_year: c.birthYear,
-          death_year: c.deathYear,
-          avatar_url: c.portrait || wiki?.thumbnail || null,
-          short_bio: shortBio,
-          notable_for: wiki?.description || `${era} composer`,
-        },
-        { onConflict: "slug" }
-      )
+      .upsert(newComposerRow, { onConflict: "slug" })
       .select("id")
       .single();
 
@@ -307,38 +256,60 @@ async function main() {
       continue;
     }
 
+    composerMatcher.add({ ...newComposerRow, id: inserted.id });
     insertedComposers += 1;
 
-    // Fetch works for this composer from OpenOpus
+    // Fetch works for this composer from OpenOpus and deduplicate before inserting
     const worksData = await fetchJson(
       `https://api.openopus.org/work/list/composer/${c.id}/genre/all.json`
     );
     const rawWorks = worksData?.works ?? [];
 
-    // Prioritize popular & recommended works first
     const sortedWorks = [...rawWorks].sort((a, b) => {
       const scoreA = (a.popular === "1" ? 2 : 0) + (a.recommended === "1" ? 1 : 0);
       const scoreB = (b.popular === "1" ? 2 : 0) + (b.recommended === "1" ? 1 : 0);
       return scoreB - scoreA;
     });
 
-    const selectedWorks = sortedWorks.slice(0, MAX_WORKS_PER_COMPOSER);
-    if (selectedWorks.length > 0) {
-      const rows = selectedWorks.map((w) => {
-        const { catalog_system, catalog_number } = extractCatalog(w.title);
-        return {
-          composer_id: inserted.id,
-          title: w.title,
-          nickname: w.subtitle || null,
+    const workMatcher = buildWorkMatcher([]);
+    const rows = [];
+
+    for (const w of sortedWorks) {
+      if (rows.length >= MAX_WORKS_PER_COMPOSER) break;
+      const cleanTitle = String(w.title || "").trim();
+      const canonicalKey = normalizeText(cleanTitle);
+      if (!cleanTitle || !canonicalKey) continue;
+
+      const { catalog_system, catalog_number } = extractCatalog(cleanTitle);
+      if (
+        workMatcher.findMatch({
+          openopus_id: w.id,
+          title: cleanTitle,
           catalog_system,
           catalog_number,
-          genre: mapGenre(w.genre, w.title),
-          key_signature: extractKey(w.title),
-          is_popular: w.popular === "1" || w.recommended === "1",
-          description: w.searchterms ? `Also known as: ${w.searchterms}` : null,
-        };
-      });
+        })
+      ) {
+        continue;
+      }
 
+      const row = {
+        composer_id: inserted.id,
+        title: cleanTitle,
+        canonical_key: canonicalKey,
+        nickname: w.subtitle || null,
+        catalog_system,
+        catalog_number,
+        genre: mapWorkGenre(w.genre, cleanTitle),
+        key_signature: extractKey(cleanTitle),
+        is_popular: w.popular === "1" || w.recommended === "1",
+        description: w.searchterms ? `Also known as: ${w.searchterms}` : null,
+        openopus_id: w.id ? String(w.id) : null,
+      };
+      workMatcher.add(row);
+      rows.push(row);
+    }
+
+    if (rows.length > 0) {
       const { error: worksErr } = await supabase.from("works").insert(rows);
       if (worksErr) {
         console.error(
@@ -350,9 +321,7 @@ async function main() {
       }
     }
 
-    console.log(
-      `  ✓ ${c.complete_name} (${era}) — ${selectedWorks.length} works`
-    );
+    console.log(`  ✓ ${c.complete_name} (${era}) — ${rows.length} works`);
     await sleep(250);
   }
 

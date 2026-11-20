@@ -1,20 +1,28 @@
-name: Sync Classical Composers (OpenOpus)
+name: Sync Classical Composers (OpenOpus + MusicBrainz)
 
 on:
-  # Runs automatically every day at 03:00 UTC to incrementally grow the database
+  # Runs automatically every day at 03:00 UTC
   schedule:
     - cron: "0 3 * * *"
-  # Also lets you trigger a sync anytime from the GitHub Actions tab
+  # Manual trigger with configurable source & batch sizes
   workflow_dispatch:
     inputs:
+      source:
+        description: "Which source to sync"
+        type: choice
+        default: "all"
+        options:
+          - all
+          - musicbrainz
+          - openopus
       batch_size:
-        description: "Number of new composers to import in this run"
+        description: "Composers per run (OpenOpus / MusicBrainz)"
         required: false
-        default: "15"
+        default: "20"
       max_works_per_composer:
-        description: "Max works to import per composer"
+        description: "Max works per composer"
         required: false
-        default: "35"
+        default: "40"
 
 jobs:
   sync:
@@ -32,10 +40,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Sync next batch of composers & works into Supabase
+      - name: Sync composers & works from OpenOpus + Wikipedia
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.source == 'all' || github.event.inputs.source == 'openopus' }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-          BATCH_SIZE: ${{ github.event.inputs.batch_size || '15' }}
-          MAX_WORKS_PER_COMPOSER: ${{ github.event.inputs.max_works_per_composer || '35' }}
+          BATCH_SIZE: ${{ github.event.inputs.batch_size || '20' }}
+          MAX_WORKS_PER_COMPOSER: ${{ github.event.inputs.max_works_per_composer || '40' }}
         run: node scripts/sync-openopus.mjs
+
+      - name: Enrich & sync composers & works from MusicBrainz
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.source == 'all' || github.event.inputs.source == 'musicbrainz' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          MB_BATCH_SIZE: ${{ github.event.inputs.batch_size || '20' }}
+          MB_MAX_WORKS: ${{ github.event.inputs.max_works_per_composer || '40' }}
+        run: node scripts/sync-musicbrainz.mjs
