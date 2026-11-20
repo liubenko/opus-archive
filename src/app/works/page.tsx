@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase";
 import type { WorkWithComposer } from "@/types/database";
 import { WorksDirectory } from "@/components/WorksDirectory";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function WorksIndexPage() {
   const { data } = await supabase

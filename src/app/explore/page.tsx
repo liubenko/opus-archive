@@ -3,7 +3,7 @@ import type { Composer, ComposerRelation, Work } from "@/types/database";
 import { InfluenceGraph } from "@/components/InfluenceGraph";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function ExplorePage() {
   const [composersRes, worksRes, relationsRes] = await Promise.all([

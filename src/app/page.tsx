@@ -5,7 +5,7 @@ import type { ComposerWithWorkCount } from "@/types/database";
 import { CatalogSearchBar } from "@/components/CatalogSearchBar";
 import { ComposerDirectory } from "@/components/ComposerDirectory";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const [composersRes, worksCountRes, relationsCountRes] = await Promise.all([

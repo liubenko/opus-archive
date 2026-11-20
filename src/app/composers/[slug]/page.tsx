@@ -14,7 +14,7 @@ import { formatLifespan, getEraStyle, RELATION_META } from "@/lib/constants";
 import { ComposerAvatar } from "@/components/ComposerAvatar";
 import { ComposerWorksList } from "@/components/ComposerWorksList";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 interface ComposerPageProps {
   params: Promise<{ slug: string }>;
