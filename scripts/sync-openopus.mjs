@@ -201,10 +201,10 @@ async function main() {
     `Starting OpenOpus sync (batch size: ${BATCH_SIZE}, max works/composer: ${MAX_WORKS_PER_COMPOSER})...`
   );
 
-  // 1. Load existing composer slugs from Supabase
+  // 1. Load existing composer slugs & names from Supabase
   const { data: existingComposers, error: existingErr } = await supabase
     .from("composers")
-    .select("id, slug, name");
+    .select("id, slug, name, full_name");
 
   if (existingErr) {
     throw new Error(`Failed to fetch existing composers: ${existingErr.message}`);
@@ -212,7 +212,10 @@ async function main() {
 
   const existingSlugs = new Set(existingComposers.map((c) => c.slug));
   const existingNames = new Set(
-    existingComposers.map((c) => c.name.toLowerCase())
+    existingComposers.flatMap((c) => [
+      c.name.toLowerCase(),
+      (c.full_name || "").toLowerCase(),
+    ])
   );
   console.log(`Currently ${existingSlugs.size} composers in Supabase.`);
 
@@ -356,6 +359,12 @@ async function main() {
   console.log(
     `Done! Added ${insertedComposers} composers and ${insertedWorks} works.`
   );
+
+  if (toImport.length > 0 && insertedComposers === 0) {
+    throw new Error(
+      "All composer upserts failed. Check SUPABASE_SECRET_KEY and service_role table permissions."
+    );
+  }
 }
 
 main().catch((err) => {
