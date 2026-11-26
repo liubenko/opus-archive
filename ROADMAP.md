@@ -74,59 +74,35 @@
 
 # v2 — Refinement, Discovery & Practice Expansion
 
-## Phase 6 — Full 314-Composer Enrichment & Catalog Polish (Next Up)
+## Phase 6 — Full 314-Composer Enrichment & Catalog Polish ✅
 
-**Goal:** Eliminate missing portraits, finish IMSLP linking across all 314 composers, and bulk-harvest structured work metadata.
-
-- [ ] **Backfill Missing Composer Portraits & Bios (94 composers)**
-  - Fetch Wikimedia portraits (`avatar_url`), `birth_place`, and enriched summaries via Wikipedia REST + Wikidata (`P18` / `P19`) for the 94 composers currently missing avatars
-- [ ] **Complete IMSLP Link Sync (remaining 174 composers)**
-  - Run full IMSLP category + work matching across all remaining unsynced composers
-- [ ] **High-Throughput IMSLP `{{Work Info}}` Harvest (50 pages/request)**
-  - Upgrade `sync-imslp.mjs` to MediaWiki's 50-title batch size and harvest `year_composed`, `duration_minutes`, `key_signature`, `instrumentation`, and `movements_count` across all ~3,000+ linked works
-- [ ] **Work Title & Duplicate Cleanup**
-  - Normalize messy imported work titles and merge any remaining sparse duplicates
+- [x] Backfilled Wikimedia portraits (`avatar_url` now 284 / 314 = 90.4%), `birth_place`, and editorial Wikipedia bios (`scripts/enrich-composers.mjs`)
+- [x] Completed IMSLP category + score-link sync across all 314 composers (5,735+ works linked)
+- [x] Upgraded `sync-imslp.mjs` to 50-page MediaWiki bulk batches, lifting composition years (+130%) and durations
+- [x] Folded remaining 789 opera scene/act sub-works into `public.work_movements` (now 3,621 structured movements) and normalized title whitespace
 
 ---
 
-## Phase 7 — Global `⌘K` Search, Homepage Polish & Discovery Features
+## Phase 7 — Global `⌘K` Search, Homepage Polish & Discovery Features ✅
 
-**Goal:** Make browsing, discovering repertoire, and exploring music history effortless and delightful.
-
-- [ ] **Global `⌘K` / `Ctrl+K` Command Palette**
-  - Instant keyboard-driven modal accessible from every page (jump to composers, works, opus numbers, My Studio, or filters)
-- [ ] **Homepage Polish & "Featured Work / Historical Spotlight"**
-  - Add *Featured Masterwork of the Day* + *Composer Anniversaries* section on `/`
-  - Upgrade Composer Directory with sort controls (*Chronological*, *Alphabetical*, *Most Works*) and cleaner cards
-- [ ] **Smart Repertoire Finder**
-  - Guided musician prompt bar on `/works` (e.g., *"10–20 min" + "Romantic" + "Cello"* → instant playable concert suggestions)
-- [ ] **"Who Was Alive Then?" Contemporaries Bar**
-  - Visual lifespan overlap chart on each `/composers/[slug]` page showing which other composers overlapped their lifetime
-- [ ] **Community Favorite Editions & Reference Recordings**
-  - Let signed-in musicians upvote/bookmark the best IMSLP edition or reference recording on `/works/[slug]`
+- [x] Global `⌘K` / `Ctrl+K` Command Palette (`CommandPalette.tsx`) accessible from every page
+- [x] Homepage *Masterwork of the Day* + *Milestone Anniversaries* spotlight + Composer Directory *Most Works* sort & search
+- [x] Smart Repertoire Finder + *Surprise Me* picker on `/works`
+- [x] *"Who Was Alive Then?"* Contemporaries lifespan overlap bar on every `/composers/[slug]` page
+- [x] Community Favorite Edition & Recording likes (`public.work_edition_votes`) on `/works/[slug]`
 
 ---
 
-## Phase 8 — Practice Session Timer, Weekly Stats & Studio UX Polish
+## Phase 8 — Practice Session Timer, Weekly Stats & Studio UX Polish ✅
 
-**Goal:** Turn `/studio` into a daily practice companion.
-
-- [ ] **Practice Session Stopwatch & Log (`public.practice_sessions`)**
-  - Live start/pause/save practice timer attachable to any repertoire work (plus quick manual minute entry & session focus notes)
-  - Strict `user_id = (select auth.uid())` RLS
-- [ ] **Weekly Practice Analytics & Streak**
-  - 7-day practice minutes bar chart, active day streak, and top-practiced pieces breakdown inside `/studio`
-- [ ] **My Studio UX Polish**
-  - Faster inline editing, mobile-optimized cards, and quick status transitions
+- [x] Built live Practice Stopwatch & Session Logger (`public.practice_sessions` with `user_id = (select auth.uid())` RLS) inside `/studio`
+- [x] Built 7-day Practice Activity bar chart, active day streak, and session history log
 
 ---
 
-## Phase 9 — Shareable Recital Program Links
+## Phase 9 — Shareable Recital Program Links ✅
 
-**Goal:** Let musicians share clean concert programs with collaborators and venues in one click.
+- [x] Added `is_public`, `share_slug`, and `performer_name` to `public.recital_programs` with public read-only RLS when `is_public = true`
+- [x] Built `/programs/[slug]` public concert sheet view with Print / Save PDF button and IMSLP score links for collaborators
 
-- [ ] **Public Share Token on `public.recital_programs`**
-  - Add optional `is_public boolean` and unique `share_slug text` to `recital_programs` with public read-only RLS when `is_public = true`
-- [ ] **Public Concert Program View (`/programs/[share_slug]`)**
-  - Clean, distraction-free recital program page showing venue, date, Half I / Intermission / Half II, composer dates, timings, program notes, IMSLP links, and a **Print / Save PDF** button for pianists, teachers, and concert organizers
 

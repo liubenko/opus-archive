@@ -123,6 +123,44 @@ export type Database = {
         };
         Relationships: [];
       };
+      practice_sessions: {
+        Row: {
+          created_at: string;
+          duration_minutes: number;
+          focus_notes: string | null;
+          id: number;
+          practiced_on: string;
+          user_id: string;
+          work_id: number;
+        };
+        Insert: {
+          created_at?: string;
+          duration_minutes: number;
+          focus_notes?: string | null;
+          id?: never;
+          practiced_on?: string;
+          user_id?: string;
+          work_id: number;
+        };
+        Update: {
+          created_at?: string;
+          duration_minutes?: number;
+          focus_notes?: string | null;
+          id?: never;
+          practiced_on?: string;
+          user_id?: string;
+          work_id?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "practice_sessions_work_id_fkey";
+            columns: ["work_id"];
+            isOneToOne: false;
+            referencedRelation: "works";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       recital_program_items: {
         Row: {
           created_at: string;
@@ -180,7 +218,10 @@ export type Database = {
           event_date: string | null;
           id: number;
           intermission_minutes: number;
+          is_public: boolean;
           notes: string | null;
+          performer_name: string | null;
+          share_slug: string | null;
           title: string;
           updated_at: string;
           user_id: string;
@@ -191,7 +232,10 @@ export type Database = {
           event_date?: string | null;
           id?: never;
           intermission_minutes?: number;
+          is_public?: boolean;
           notes?: string | null;
+          performer_name?: string | null;
+          share_slug?: string | null;
           title: string;
           updated_at?: string;
           user_id?: string;
@@ -202,7 +246,10 @@ export type Database = {
           event_date?: string | null;
           id?: never;
           intermission_minutes?: number;
+          is_public?: boolean;
           notes?: string | null;
+          performer_name?: string | null;
+          share_slug?: string | null;
           title?: string;
           updated_at?: string;
           user_id?: string;
@@ -501,6 +548,8 @@ export type SiteSettings =
   Database["public"]["Tables"]["site_settings"]["Row"];
 export type UserRepertoire =
   Database["public"]["Tables"]["user_repertoire"]["Row"];
+export type PracticeSession =
+  Database["public"]["Tables"]["practice_sessions"]["Row"];
 export type RecitalProgram =
   Database["public"]["Tables"]["recital_programs"]["Row"];
 export type RecitalProgramItem =

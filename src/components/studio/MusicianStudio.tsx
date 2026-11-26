@@ -24,9 +24,18 @@ import {
   ArrowLeftRight,
   AlertCircle,
   BookOpen,
+  Timer,
+  Play,
+  Pause,
+  Square,
+  Share2,
+  Copy,
+  ExternalLink,
+  Flame,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type {
+  PracticeSession,
   RecitalProgram,
   RecitalProgramItem,
   UserRepertoire,
@@ -36,10 +45,7 @@ import type {
 const FREE_REPERTOIRE_LIMIT = 20;
 const FREE_PROGRAMS_LIMIT = 1;
 
-const STATUS_META: Record<
-  string,
-  { label: string; badge: string }
-> = {
+const STATUS_META: Record<string, { label: string; badge: string }> = {
   learning: {
     label: "Learning",
     badge:
@@ -78,6 +84,14 @@ type RepertoireEntry = UserRepertoire & {
     | null;
 };
 
+type PracticeSessionEntry = PracticeSession & {
+  works:
+    | (Pick<Work, "id" | "slug" | "title" | "catalog_display"> & {
+        composers: { name: string } | null;
+      })
+    | null;
+};
+
 type ProgramItemWithWork = RecitalProgramItem & {
   works:
     | (Pick<
@@ -108,6 +122,25 @@ type CatalogSearchHit = Pick<
   composers: { name: string } | null;
 };
 
+function formatStopwatch(totalSeconds: number) {
+  const hrs = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  const secs = totalSeconds % 60;
+  const mm = String(mins).padStart(2, "0");
+  const ss = String(secs).padStart(2, "0");
+  return hrs > 0 ? `${hrs}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+function makeShareSlug(title: string) {
+  const base = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 36);
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `${base || "recital"}-${rand}`;
+}
+
 export function MusicianStudio() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -120,9 +153,9 @@ export function MusicianStudio() {
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<"repertoire" | "programs">(
-    "repertoire"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "repertoire" | "practice" | "programs"
+  >("repertoire");
   const [toast, setToast] = useState<string | null>(null);
 
   // Repertoire state
@@ -132,6 +165,22 @@ export function MusicianStudio() {
   const [editingNotesId, setEditingNotesId] = useState<number | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
 
+  // Practice Timer & Sessions state
+  const [sessions, setSessions] = useState<PracticeSessionEntry[]>([]);
+  const [timerWork, setTimerWork] = useState<{
+    id: number;
+    title: string;
+  } | null>(null);
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timerFocus, setTimerFocus] = useState("");
+  const [manualWorkId, setManualWorkId] = useState<string>("");
+  const [manualMinutes, setManualMinutes] = useState<number>(30);
+  const [manualDate, setManualDate] = useState<string>(() =>
+    new Date().toISOString().slice(0, 10)
+  );
+  const [manualNotes, setManualNotes] = useState<string>("");
+
   // Programs state
   const [programs, setPrograms] = useState<RecitalProgram[]>([]);
   const [selectedProgramId, setSelectedProgramId] = useState<number | null>(
@@ -139,8 +188,10 @@ export function MusicianStudio() {
   );
   const [programItems, setProgramItems] = useState<ProgramItemWithWork[]>([]);
   const [showNewProgram, setShowNewProgram] = useState(false);
+  const [copiedShare, setCopiedShare] = useState(false);
   const [newProgram, setNewProgram] = useState({
     title: "",
+    performer_name: "",
     venue: "",
     event_date: "",
     intermission_minutes: 15,
@@ -163,6 +214,15 @@ export function MusicianStudio() {
     setTimeout(() => setToast(null), 3200);
   }, []);
 
+  // Stopwatch tick
+  useEffect(() => {
+    if (!timerRunning) return;
+    const interval = setInterval(() => {
+      setTimerSeconds((s) => s + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timerRunning]);
+
   useEffect(() => {
     let mounted = true;
     supabase.auth.getUser().then(({ data }) => {
@@ -181,7 +241,7 @@ export function MusicianStudio() {
   }, []);
 
   const loadWorkspace = useCallback(async () => {
-    const [repRes, progRes] = await Promise.all([
+    const [repRes, progRes, sessRes] = await Promise.all([
       supabase
         .from("user_repertoire")
         .select(
@@ -192,15 +252,27 @@ export function MusicianStudio() {
         .from("recital_programs")
         .select("*")
         .order("created_at", { ascending: false }),
+      supabase
+        .from("practice_sessions")
+        .select("*, works(id, slug, title, catalog_display, composers(name))")
+        .order("practiced_on", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(100),
     ]);
 
-    setRepertoire((repRes.data ?? []) as RepertoireEntry[]);
+    const reps = (repRes.data ?? []) as RepertoireEntry[];
+    setRepertoire(reps);
+    setSessions((sessRes.data ?? []) as PracticeSessionEntry[]);
+    if (!manualWorkId && reps[0]?.work_id) {
+      setManualWorkId(String(reps[0].work_id));
+    }
+
     const progs = progRes.data ?? [];
     setPrograms(progs);
     setSelectedProgramId((prev) =>
       prev && progs.some((p) => p.id === prev) ? prev : progs[0]?.id ?? null
     );
-  }, []);
+  }, [manualWorkId]);
 
   const loadProgramItems = useCallback(async (programId: number) => {
     const { data } = await supabase
@@ -241,8 +313,12 @@ export function MusicianStudio() {
     const t = setTimeout(async () => {
       const { data } = await supabase
         .from("works")
-        .select("id, slug, title, catalog_display, genre, duration_minutes, composers(name)")
-        .or(`title.ilike.%${q}%,catalog_display.ilike.%${q}%,nickname.ilike.%${q}%`)
+        .select(
+          "id, slug, title, catalog_display, genre, duration_minutes, composers(name)"
+        )
+        .or(
+          `title.ilike.%${q}%,catalog_display.ilike.%${q}%,nickname.ilike.%${q}%`
+        )
         .order("is_popular", { ascending: false })
         .limit(20);
       if (!cancelled) {
@@ -270,7 +346,10 @@ export function MusicianStudio() {
       });
       setAuthBusy(false);
       if (error) setAuthError(error.message);
-      else setAuthNotice(`Check ${email.trim()} for your one-click sign-in link.`);
+      else
+        setAuthNotice(
+          `Check ${email.trim()} for your one-click sign-in link.`
+        );
       return;
     }
 
@@ -282,7 +361,10 @@ export function MusicianStudio() {
       });
       setAuthBusy(false);
       if (error) setAuthError(error.message);
-      else setAuthNotice("Account created! Check your email to confirm (or sign in now).");
+      else
+        setAuthNotice(
+          "Account created! Check your email to confirm (or sign in now)."
+        );
       return;
     }
 
@@ -292,6 +374,75 @@ export function MusicianStudio() {
     });
     setAuthBusy(false);
     if (error) setAuthError(error.message);
+  }
+
+  function startTimerForWork(workId: number, title: string) {
+    setTimerWork({ id: workId, title });
+    setTimerSeconds(0);
+    setTimerFocus("");
+    setTimerRunning(true);
+  }
+
+  async function handleFinishTimerSession() {
+    if (!user || !timerWork) return;
+    setTimerRunning(false);
+    const mins = Math.max(1, Math.round(timerSeconds / 60));
+    const today = new Date().toISOString().slice(0, 10);
+
+    const { error } = await supabase.from("practice_sessions").insert({
+      user_id: user.id,
+      work_id: timerWork.id,
+      duration_minutes: mins,
+      practiced_on: today,
+      focus_notes: timerFocus.trim() || null,
+    });
+
+    await supabase
+      .from("user_repertoire")
+      .update({ last_practiced_at: today, updated_at: new Date().toISOString() })
+      .eq("user_id", user.id)
+      .eq("work_id", timerWork.id);
+
+    if (!error) {
+      showToast(`Logged ${mins} min on "${timerWork.title}"!`);
+      setTimerWork(null);
+      setTimerSeconds(0);
+      setTimerFocus("");
+      loadWorkspace();
+    }
+  }
+
+  async function handleLogManualSession(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user || !manualWorkId || manualMinutes <= 0) return;
+
+    const { error } = await supabase.from("practice_sessions").insert({
+      user_id: user.id,
+      work_id: Number(manualWorkId),
+      duration_minutes: Math.min(720, Math.max(1, Number(manualMinutes))),
+      practiced_on: manualDate || new Date().toISOString().slice(0, 10),
+      focus_notes: manualNotes.trim() || null,
+    });
+
+    await supabase
+      .from("user_repertoire")
+      .update({
+        last_practiced_at: manualDate,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", user.id)
+      .eq("work_id", Number(manualWorkId));
+
+    if (!error) {
+      setManualNotes("");
+      showToast(`Logged ${manualMinutes} min practice session`);
+      loadWorkspace();
+    }
+  }
+
+  async function handleDeleteSession(id: number) {
+    await supabase.from("practice_sessions").delete().eq("id", id);
+    loadWorkspace();
   }
 
   async function handleAddWorkToRepertoire(work: CatalogSearchHit) {
@@ -347,8 +498,7 @@ export function MusicianStudio() {
       "Duration (min)",
       "Notes",
     ];
-    const escape = (v: unknown) =>
-      `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const rows = repertoire.map((r) => [
       r.works?.composers?.name ?? "",
       r.works?.catalog_display ?? "",
@@ -359,7 +509,9 @@ export function MusicianStudio() {
       r.works?.duration_minutes ?? "",
       r.notes ?? "",
     ]);
-    const csv = [headers, ...rows].map((row) => row.map(escape).join(",")).join("\n");
+    const csv = [headers, ...rows]
+      .map((row) => row.map(escape).join(","))
+      .join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -383,6 +535,7 @@ export function MusicianStudio() {
       .insert({
         user_id: user.id,
         title: newProgram.title.trim(),
+        performer_name: newProgram.performer_name.trim() || null,
         venue: newProgram.venue.trim() || null,
         event_date: newProgram.event_date || null,
         intermission_minutes: Number(newProgram.intermission_minutes) || 15,
@@ -393,6 +546,7 @@ export function MusicianStudio() {
       setShowNewProgram(false);
       setNewProgram({
         title: "",
+        performer_name: "",
         venue: "",
         event_date: "",
         intermission_minutes: 15,
@@ -401,6 +555,34 @@ export function MusicianStudio() {
       showToast(`Created program "${data.title}"`);
       loadWorkspace();
     }
+  }
+
+  async function handleToggleShareProgram(prog: RecitalProgram) {
+    const nextPublic = !prog.is_public;
+    const slug = prog.share_slug || makeShareSlug(prog.title);
+    const { error } = await supabase
+      .from("recital_programs")
+      .update({
+        is_public: nextPublic,
+        share_slug: slug,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", prog.id);
+    if (!error) {
+      showToast(
+        nextPublic
+          ? "Public share link enabled!"
+          : "Program is now private."
+      );
+      loadWorkspace();
+    }
+  }
+
+  function handleCopyShareUrl(slug: string) {
+    const url = `${window.location.origin}/programs/${slug}`;
+    navigator.clipboard.writeText(url);
+    setCopiedShare(true);
+    setTimeout(() => setCopiedShare(false), 2000);
   }
 
   async function handleDeleteProgram(id: number) {
@@ -466,6 +648,45 @@ export function MusicianStudio() {
     if (selectedProgramId) loadProgramItems(selectedProgramId);
   }
 
+  // Practice 7-day analytics & streak
+  const practiceAnalytics = useMemo(() => {
+    const days: { date: string; label: string; minutes: number }[] = [];
+    const byDate = new Map<string, number>();
+    for (const s of sessions) {
+      byDate.set(s.practiced_on, (byDate.get(s.practiced_on) ?? 0) + s.duration_minutes);
+    }
+
+    const now = new Date();
+    for (let offset = 6; offset >= 0; offset--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - offset);
+      const iso = d.toISOString().slice(0, 10);
+      const label = d.toLocaleDateString("en-US", { weekday: "short" });
+      days.push({ date: iso, label, minutes: byDate.get(iso) ?? 0 });
+    }
+
+    const weekMinutes = days.reduce((acc, d) => acc + d.minutes, 0);
+    const totalMinutes = sessions.reduce((acc, s) => acc + s.duration_minutes, 0);
+
+    // Consecutive active day streak (counting today or starting from yesterday if today=0)
+    let streak = 0;
+    for (let offset = 0; offset < 60; offset++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - offset);
+      const iso = d.toISOString().slice(0, 10);
+      if ((byDate.get(iso) ?? 0) > 0) {
+        streak++;
+      } else if (offset === 0) {
+        continue;
+      } else {
+        break;
+      }
+    }
+
+    const maxDay = Math.max(30, ...days.map((d) => d.minutes));
+    return { days, weekMinutes, totalMinutes, streak, maxDay };
+  }, [sessions]);
+
   const filteredRepertoire = useMemo(() => {
     const q = repSearch.trim().toLowerCase();
     return repertoire.filter((r) => {
@@ -490,11 +711,13 @@ export function MusicianStudio() {
   const half1 = programItems.filter((i) => i.half === 1);
   const half2 = programItems.filter((i) => i.half === 2);
   const half1Mins = half1.reduce(
-    (sum, i) => sum + (i.custom_duration_minutes ?? i.works?.duration_minutes ?? 0),
+    (sum, i) =>
+      sum + (i.custom_duration_minutes ?? i.works?.duration_minutes ?? 0),
     0
   );
   const half2Mins = half2.reduce(
-    (sum, i) => sum + (i.custom_duration_minutes ?? i.works?.duration_minutes ?? 0),
+    (sum, i) =>
+      sum + (i.custom_duration_minutes ?? i.works?.duration_minutes ?? 0),
     0
   );
   const intermissionMins =
@@ -522,9 +745,9 @@ export function MusicianStudio() {
               Opus Archive Studio
             </h1>
             <p className="text-xs text-stone-500 dark:text-stone-400">
-              Sign in to track your repertoire, log practice dates, and build
-              timed recital programs with PDF export. Free Starter includes 20
-              tracked works &amp; 1 recital program.
+              Sign in to track your repertoire, run the practice timer, and
+              build shareable recital programs. Free Starter includes 20 tracked
+              works &amp; 1 recital program.
             </p>
           </div>
 
@@ -622,7 +845,7 @@ export function MusicianStudio() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
-      {/* Header (hidden when printing recital program) */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
         <div>
           <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9a7432] dark:text-[#d4af6a]">
@@ -656,6 +879,78 @@ export function MusicianStudio() {
         </button>
       </div>
 
+      {/* Active Practice Stopwatch Bar */}
+      {timerWork && (
+        <div className="bg-gradient-to-r from-[#1a1816] to-[#2b241b] text-[#f3efe6] rounded-2xl p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-md print:hidden">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-[#d4af6a] text-[#11100e] flex items-center justify-center shrink-0">
+              <Timer className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] uppercase tracking-wider text-[#d4af6a] font-semibold block">
+                Active Practice Session
+              </span>
+              <p className="font-serif text-base font-semibold truncate">
+                {timerWork.title}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="font-mono text-2xl font-bold tracking-wider px-3 py-1 rounded-xl bg-black/30 text-[#d4af6a]">
+              {formatStopwatch(timerSeconds)}
+            </span>
+
+            <input
+              type="text"
+              value={timerFocus}
+              onChange={(e) => setTimerFocus(e.target.value)}
+              placeholder="Session focus (e.g. Mvt. II intonation)..."
+              className="px-3 py-2 text-xs rounded-xl bg-white/10 border border-white/15 text-white placeholder:text-stone-400 w-52"
+            />
+
+            <button
+              type="button"
+              onClick={() => setTimerRunning((r) => !r)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-semibold cursor-pointer"
+            >
+              {timerRunning ? (
+                <>
+                  <Pause className="w-3.5 h-3.5" />
+                  Pause
+                </>
+              ) : (
+                <>
+                  <Play className="w-3.5 h-3.5" />
+                  Resume
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleFinishTimerSession}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#d4af6a] text-[#11100e] text-xs font-bold hover:opacity-90 cursor-pointer"
+            >
+              <Square className="w-3 h-3 fill-current" />
+              Save Session
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setTimerRunning(false);
+                setTimerWork(null);
+                setTimerSeconds(0);
+              }}
+              className="text-xs text-stone-400 hover:text-white px-2 cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/70 text-xs text-emerald-900 dark:text-emerald-200 flex items-center gap-2 print:hidden">
           <Check className="w-4 h-4 shrink-0" />
@@ -664,7 +959,7 @@ export function MusicianStudio() {
       )}
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 border-b border-stone-200 dark:border-stone-800 pb-3 print:hidden">
+      <div className="flex flex-wrap items-center gap-2 border-b border-stone-200 dark:border-stone-800 pb-3 print:hidden">
         <button
           type="button"
           onClick={() => setActiveTab("repertoire")}
@@ -675,8 +970,22 @@ export function MusicianStudio() {
           }`}
         >
           <Bookmark className="w-4 h-4" />
-          Repertoire &amp; Practice ({repertoire.length})
+          Repertoire ({repertoire.length})
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("practice")}
+          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+            activeTab === "practice"
+              ? "bg-[#1a1816] dark:bg-[#f3efe6] text-white dark:text-[#11100e]"
+              : "text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800"
+          }`}
+        >
+          <Timer className="w-4 h-4" />
+          Practice Timer &amp; Stats ({practiceAnalytics.weekMinutes}m/wk)
+        </button>
+
         <button
           type="button"
           onClick={() => setActiveTab("programs")}
@@ -687,14 +996,13 @@ export function MusicianStudio() {
           }`}
         >
           <BookOpen className="w-4 h-4" />
-          Recital Program Builder ({programs.length})
+          Recital Programs ({programs.length})
         </button>
       </div>
 
       {/* TAB 1: REPERTOIRE TRACKER */}
       {activeTab === "repertoire" && (
         <div className="space-y-5">
-          {/* Summary Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {(["learning", "ready", "performed", "wishlist"] as const).map(
               (st) => {
@@ -724,7 +1032,6 @@ export function MusicianStudio() {
             )}
           </div>
 
-          {/* Toolbar */}
           <div className="flex flex-col sm:flex-row gap-3 justify-between">
             <div className="relative flex-1 max-w-md">
               <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -759,13 +1066,12 @@ export function MusicianStudio() {
             </div>
           </div>
 
-          {/* List */}
           {filteredRepertoire.length === 0 ? (
             <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200 dark:border-stone-800 p-10 text-center space-y-3">
               <Music className="w-8 h-8 text-stone-400 mx-auto" />
               <p className="text-sm text-stone-600 dark:text-stone-400">
                 {repertoire.length === 0
-                  ? "Your repertoire library is empty. Add your first piece from the 20,599-work catalog!"
+                  ? "Your repertoire library is empty. Add your first piece from the catalog!"
                   : "No pieces match your current filter."}
               </p>
               {repertoire.length === 0 && (
@@ -783,13 +1089,12 @@ export function MusicianStudio() {
             <div className="divide-y divide-stone-200/70 dark:divide-stone-800/80 bg-white dark:bg-[#191714] rounded-2xl border border-stone-200 dark:border-stone-800 overflow-hidden">
               {filteredRepertoire.map((entry) => {
                 const w = entry.works;
-                const today = new Date().toISOString().slice(0, 10);
                 return (
                   <div
                     key={entry.id}
                     className="p-4 sm:p-5 space-y-3 hover:bg-[#faf8f4]/50 dark:hover:bg-[#221f1b]/50 transition-colors"
                   >
-                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
+                    <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
                       <div className="space-y-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           {w?.catalog_display && (
@@ -806,7 +1111,9 @@ export function MusicianStudio() {
                         </div>
                         <p className="text-xs text-stone-500 dark:text-stone-400">
                           {w?.composers?.name}
-                          {w?.duration_minutes ? ` · ~${w.duration_minutes} min` : ""}
+                          {w?.duration_minutes
+                            ? ` · ~${w.duration_minutes} min`
+                            : ""}
                           {entry.last_practiced_at
                             ? ` · Last practiced ${entry.last_practiced_at}`
                             : ""}
@@ -814,7 +1121,20 @@ export function MusicianStudio() {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
-                        {/* Status Select */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            startTimerForWork(
+                              entry.work_id,
+                              w?.title ?? `Work #${entry.work_id}`
+                            )
+                          }
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-[#1a1816] dark:bg-[#d4af6a] text-white dark:text-[#11100e] text-xs font-semibold cursor-pointer"
+                        >
+                          <Play className="w-3 h-3 fill-current" />
+                          Practice Timer
+                        </button>
+
                         <select
                           value={entry.status}
                           onChange={(e) =>
@@ -838,7 +1158,6 @@ export function MusicianStudio() {
                           ))}
                         </select>
 
-                        {/* Difficulty 1-5 */}
                         <div className="inline-flex items-center gap-0.5 px-2 py-1 rounded-lg bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800">
                           {[1, 2, 3, 4, 5].map((n) => (
                             <button
@@ -863,19 +1182,6 @@ export function MusicianStudio() {
                           ))}
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleUpdateRepertoire(entry.id, {
-                              last_practiced_at: today,
-                            })
-                          }
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-stone-200 dark:border-stone-700 text-xs font-medium text-stone-700 dark:text-stone-200 hover:border-[#d4af6a] cursor-pointer"
-                        >
-                          <Calendar className="w-3 h-3" />
-                          Practiced Today
-                        </button>
-
                         {w?.imslp_url && (
                           <a
                             href={w.imslp_url}
@@ -899,7 +1205,6 @@ export function MusicianStudio() {
                       </div>
                     </div>
 
-                    {/* Private Notes */}
                     {editingNotesId === entry.id ? (
                       <div className="flex gap-2">
                         <input
@@ -948,10 +1253,243 @@ export function MusicianStudio() {
         </div>
       )}
 
-      {/* TAB 2: RECITAL PROGRAM BUILDER */}
+      {/* TAB 2: PRACTICE TIMER & WEEKLY ANALYTICS */}
+      {activeTab === "practice" && (
+        <div className="space-y-6">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200 dark:border-stone-800 p-4">
+              <span className="text-[11px] uppercase tracking-wider font-semibold text-stone-500">
+                Last 7 Days
+              </span>
+              <p className="font-serif text-2xl font-bold text-stone-900 dark:text-[#f3efe6] mt-1">
+                {practiceAnalytics.weekMinutes} min
+              </p>
+            </div>
+            <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200 dark:border-stone-800 p-4">
+              <span className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 flex items-center gap-1">
+                <Flame className="w-3.5 h-3.5 text-amber-500" />
+                Day Streak
+              </span>
+              <p className="font-serif text-2xl font-bold text-stone-900 dark:text-[#f3efe6] mt-1">
+                {practiceAnalytics.streak}{" "}
+                {practiceAnalytics.streak === 1 ? "day" : "days"}
+              </p>
+            </div>
+            <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200 dark:border-stone-800 p-4">
+              <span className="text-[11px] uppercase tracking-wider font-semibold text-stone-500">
+                Total Logged
+              </span>
+              <p className="font-serif text-2xl font-bold text-stone-900 dark:text-[#f3efe6] mt-1">
+                {(practiceAnalytics.totalMinutes / 60).toFixed(1)} hrs
+              </p>
+            </div>
+            <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200 dark:border-stone-800 p-4">
+              <span className="text-[11px] uppercase tracking-wider font-semibold text-stone-500">
+                Sessions
+              </span>
+              <p className="font-serif text-2xl font-bold text-stone-900 dark:text-[#f3efe6] mt-1">
+                {sessions.length}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* 7-Day Bar Chart */}
+            <div className="lg:col-span-2 bg-white dark:bg-[#191714] rounded-2xl border border-stone-200 dark:border-stone-800 p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="font-serif text-lg font-bold text-stone-900 dark:text-[#f3efe6]">
+                  7-Day Practice Activity
+                </h2>
+                <span className="text-xs text-stone-400">Minutes / day</span>
+              </div>
+
+              <div className="h-44 flex items-end justify-between gap-3 pt-6">
+                {practiceAnalytics.days.map((d) => {
+                  const pct = Math.round(
+                    (d.minutes / practiceAnalytics.maxDay) * 100
+                  );
+                  return (
+                    <div
+                      key={d.date}
+                      className="flex-1 flex flex-col items-center gap-2 h-full justify-end"
+                    >
+                      <span className="font-mono text-[11px] text-stone-500 dark:text-stone-400">
+                        {d.minutes > 0 ? `${d.minutes}m` : ""}
+                      </span>
+                      <div className="w-full max-w-12 bg-stone-100 dark:bg-[#141210] rounded-t-xl h-28 flex items-end overflow-hidden">
+                        <div
+                          className="w-full bg-[#9a7432] dark:bg-[#d4af6a] rounded-t-xl transition-all"
+                          style={{
+                            height: `${d.minutes > 0 ? Math.max(8, pct) : 0}%`,
+                          }}
+                        />
+                      </div>
+                      <span className="text-[11px] font-medium text-stone-500">
+                        {d.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Log Manual Session Form */}
+            <form
+              onSubmit={handleLogManualSession}
+              className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200 dark:border-stone-800 p-6 space-y-3.5"
+            >
+              <h2 className="font-serif text-lg font-bold text-stone-900 dark:text-[#f3efe6]">
+                Log Practice Session
+              </h2>
+              {repertoire.length === 0 ? (
+                <p className="text-xs text-stone-500">
+                  Add a work to your Repertoire first to start timing or logging
+                  sessions.
+                </p>
+              ) : (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-xs text-stone-500 block">Piece</label>
+                    <select
+                      required
+                      value={manualWorkId}
+                      onChange={(e) => setManualWorkId(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100"
+                    >
+                      <option value="">Select piece...</option>
+                      {repertoire.map((r) => (
+                        <option key={r.work_id} value={r.work_id}>
+                          {r.works?.title ?? `Work #${r.work_id}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="space-y-1">
+                      <label className="text-xs text-stone-500 block">
+                        Minutes
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={720}
+                        required
+                        value={manualMinutes}
+                        onChange={(e) => setManualMinutes(Number(e.target.value))}
+                        className="w-full px-3 py-2 text-xs rounded-xl bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-stone-500 block">Date</label>
+                      <input
+                        type="date"
+                        required
+                        value={manualDate}
+                        onChange={(e) => setManualDate(e.target.value)}
+                        className="w-full px-3 py-2 text-xs rounded-xl bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-stone-500 block">
+                      Focus / Notes
+                    </label>
+                    <input
+                      type="text"
+                      value={manualNotes}
+                      onChange={(e) => setManualNotes(e.target.value)}
+                      placeholder="e.g. Coda spiccato at ♩=116"
+                      className="w-full px-3 py-2 text-xs rounded-xl bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="submit"
+                      className="flex-1 py-2 rounded-xl bg-[#1a1816] dark:bg-[#d4af6a] text-white dark:text-[#11100e] text-xs font-semibold cursor-pointer"
+                    >
+                      Save Log
+                    </button>
+                    {manualWorkId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const found = repertoire.find(
+                            (r) => String(r.work_id) === manualWorkId
+                          );
+                          startTimerForWork(
+                            Number(manualWorkId),
+                            found?.works?.title ?? "Practice"
+                          );
+                        }}
+                        className="px-3 py-2 rounded-xl border border-stone-200 dark:border-stone-700 text-xs font-medium cursor-pointer inline-flex items-center gap-1"
+                      >
+                        <Play className="w-3 h-3" />
+                        Live Timer
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </form>
+          </div>
+
+          {/* Session History */}
+          {sessions.length > 0 && (
+            <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200 dark:border-stone-800 overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-stone-200 dark:border-stone-800">
+                <h3 className="font-serif font-bold text-base text-stone-900 dark:text-[#f3efe6]">
+                  Recent Practice Sessions
+                </h3>
+              </div>
+              <div className="divide-y divide-stone-100 dark:divide-stone-800">
+                {sessions.map((s) => (
+                  <div
+                    key={s.id}
+                    className="px-5 py-3 flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-semibold text-stone-900 dark:text-stone-100 truncate">
+                        {s.works?.title ?? `Work #${s.work_id}`}{" "}
+                        <span className="font-normal text-stone-400">
+                          · {s.works?.composers?.name}
+                        </span>
+                      </p>
+                      {s.focus_notes && (
+                        <p className="text-stone-500 dark:text-stone-400 mt-0.5">
+                          {s.focus_notes}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="font-mono font-semibold text-[#9a7432] dark:text-[#d4af6a]">
+                        {s.duration_minutes}m
+                      </span>
+                      <span className="font-mono text-stone-400">
+                        {s.practiced_on}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSession(s.id)}
+                        className="text-stone-400 hover:text-red-500 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: RECITAL PROGRAM BUILDER */}
       {activeTab === "programs" && (
         <div className="space-y-6">
-          {/* Program Selector Bar (hidden on print) */}
           <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
             <div className="flex flex-wrap items-center gap-2">
               {programs.map((p) => (
@@ -979,7 +1517,20 @@ export function MusicianStudio() {
             </div>
 
             {activeProgram && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleToggleShareProgram(activeProgram)}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-semibold cursor-pointer ${
+                    activeProgram.is_public
+                      ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200"
+                      : "border-stone-200 dark:border-stone-800 bg-white dark:bg-[#191714] text-stone-700 dark:text-stone-200"
+                  }`}
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  {activeProgram.is_public ? "Shared Publicly" : "Share Link"}
+                </button>
+
                 <button
                   type="button"
                   onClick={() => window.print()}
@@ -1000,7 +1551,48 @@ export function MusicianStudio() {
             )}
           </div>
 
-          {/* New Program Form */}
+          {/* Shareable Link Banner */}
+          {activeProgram?.is_public && activeProgram.share_slug && (
+            <div className="p-3.5 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs print:hidden">
+              <div className="min-w-0">
+                <span className="font-semibold text-emerald-900 dark:text-emerald-200 block">
+                  Public Recital Link Active (send to your pianist, teacher, or venue):
+                </span>
+                <code className="font-mono text-[11px] text-emerald-800 dark:text-emerald-300 truncate block">
+                  {typeof window !== "undefined" ? window.location.origin : ""}
+                  /programs/{activeProgram.share_slug}
+                </code>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleCopyShareUrl(activeProgram.share_slug!)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white dark:bg-[#191714] border border-emerald-300 dark:border-emerald-700 font-semibold text-emerald-900 dark:text-emerald-200 cursor-pointer"
+                >
+                  {copiedShare ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      Copy Link
+                    </>
+                  )}
+                </button>
+                <Link
+                  href={`/programs/${activeProgram.share_slug}`}
+                  target="_blank"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-800 text-white font-semibold"
+                >
+                  Open
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
+              </div>
+            </div>
+          )}
+
           {showNewProgram && (
             <form
               onSubmit={handleCreateProgram}
@@ -1009,13 +1601,24 @@ export function MusicianStudio() {
               <h2 className="font-serif text-lg font-bold text-stone-900 dark:text-[#f3efe6]">
                 Create Recital Program
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
                 <input
                   required
-                  placeholder="Program Title (e.g. Spring Cello Recital)"
+                  placeholder="Program Title (e.g. Spring Recital)"
                   value={newProgram.title}
                   onChange={(e) =>
                     setNewProgram({ ...newProgram, title: e.target.value })
+                  }
+                  className="px-3 py-2 rounded-lg bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100"
+                />
+                <input
+                  placeholder="Performer(s) (e.g. Cello & Piano)"
+                  value={newProgram.performer_name}
+                  onChange={(e) =>
+                    setNewProgram({
+                      ...newProgram,
+                      performer_name: e.target.value,
+                    })
                   }
                   className="px-3 py-2 rounded-lg bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100"
                 />
@@ -1068,13 +1671,12 @@ export function MusicianStudio() {
             </form>
           )}
 
-          {/* Active Program Sheet (styled beautifully for both screen & PDF print) */}
           {!activeProgram ? (
             <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200 dark:border-stone-800 p-10 text-center space-y-3">
               <Sparkles className="w-8 h-8 text-stone-400 mx-auto" />
               <p className="text-sm text-stone-600 dark:text-stone-400">
-                Build a concert program with Half I, Intermission, Half II, and
-                auto-calculated stage timing.
+                Build a concert program with Half I, Intermission, Half II,
+                auto-calculated stage timing, and shareable links.
               </p>
               <button
                 type="button"
@@ -1087,7 +1689,6 @@ export function MusicianStudio() {
             </div>
           ) : (
             <div className="bg-white dark:bg-[#191714] rounded-3xl border border-stone-200 dark:border-stone-800 p-6 sm:p-10 space-y-8 print:border-0 print:p-0 print:shadow-none">
-              {/* Program Header */}
               <div className="text-center space-y-2 border-b border-stone-200 dark:border-stone-800 pb-6">
                 <span className="text-[10px] uppercase tracking-[0.22em] text-[#9a7432] dark:text-[#d4af6a] font-semibold">
                   Concert Program
@@ -1095,13 +1696,17 @@ export function MusicianStudio() {
                 <h2 className="font-serif text-3xl font-bold text-stone-900 dark:text-[#f3efe6]">
                   {activeProgram.title}
                 </h2>
+                {activeProgram.performer_name && (
+                  <p className="font-serif text-sm text-stone-700 dark:text-stone-200">
+                    {activeProgram.performer_name}
+                  </p>
+                )}
                 <p className="text-xs text-stone-500 dark:text-stone-400">
                   {[activeProgram.venue, activeProgram.event_date]
                     .filter(Boolean)
                     .join(" · ") || "Opus Archive Recital Sheet"}
                 </p>
 
-                {/* Auto Timing Summary */}
                 <div className="pt-3 flex flex-wrap items-center justify-center gap-3 text-xs font-mono">
                   <span className="px-3 py-1 rounded-full bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800">
                     Half I: <strong>{half1Mins}m</strong>
@@ -1123,7 +1728,6 @@ export function MusicianStudio() {
                 </div>
               </div>
 
-              {/* Half I & Half II */}
               {([1, 2] as const).map((halfNum) => {
                 const list = halfNum === 1 ? half1 : half2;
                 const mins = halfNum === 1 ? half1Mins : half2Mins;
@@ -1150,7 +1754,8 @@ export function MusicianStudio() {
 
                     {list.length === 0 ? (
                       <p className="text-xs italic text-stone-400 py-3 print:hidden">
-                        No works in {halfNum === 1 ? "First" : "Second"} Half yet.
+                        No works in {halfNum === 1 ? "First" : "Second"} Half
+                        yet.
                       </p>
                     ) : (
                       <div className="space-y-2.5">
@@ -1281,7 +1886,7 @@ export function MusicianStudio() {
                   type="text"
                   value={pickerQuery}
                   onChange={(e) => setPickerQuery(e.target.value)}
-                  placeholder="Search 20,599 works (e.g. Cello Suite, Op. 67, BWV 1007)..."
+                  placeholder="Search 19,800+ works (e.g. Cello Suite, Op. 67, BWV 1007)..."
                   className="w-full pl-9 pr-3 py-2 text-sm rounded-xl bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100"
                 />
               </div>
@@ -1316,7 +1921,9 @@ export function MusicianStudio() {
                         </p>
                         <p className="text-xs text-stone-500 dark:text-stone-400">
                           {w.composers?.name} · {w.genre}
-                          {w.duration_minutes ? ` · ~${w.duration_minutes}m` : ""}
+                          {w.duration_minutes
+                            ? ` · ~${w.duration_minutes}m`
+                            : ""}
                         </p>
                       </div>
                       <Plus className="w-4 h-4 text-[#9a7432] dark:text-[#d4af6a] shrink-0" />
