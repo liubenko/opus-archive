@@ -14,6 +14,7 @@ on:
         options:
           - all
           - enrich
+          - hygiene
           - imslp
           - musicbrainz
           - openopus
@@ -68,10 +69,18 @@ jobs:
           ENRICH_BATCH_SIZE: ${{ github.event.inputs.batch_size || '60' }}
         run: node scripts/enrich-works.mjs
 
-      - name: Link IMSLP sheet music scores (IMSLP MediaWiki API)
+      - name: Run catalog hygiene (fold movements & backfill catalog numbers)
+        if: ${{ github.event.inputs.source == 'hygiene' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: node scripts/hygiene-catalog.mjs
+
+      - name: Link IMSLP sheet music scores & harvest Work Info metadata
         if: ${{ github.event_name == 'schedule' || github.event.inputs.source == 'all' || github.event.inputs.source == 'imslp' }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-          IMSLP_BATCH_SIZE: ${{ github.event.inputs.batch_size || '30' }}
+          IMSLP_BATCH_SIZE: ${{ github.event.inputs.batch_size || '40' }}
+          IMSLP_HARVEST_LIMIT: "300"
         run: node scripts/sync-imslp.mjs

@@ -563,7 +563,221 @@ async function main() {
   }
 
   console.log(
-    `\nIMSLP sync complete: ${composersMatched}/${composers.length} composers matched, ${worksMatched}/${worksChecked} works linked.`
+    `\nIMSLP link sync complete: ${composersMatched}/${composers.length} composers matched, ${worksMatched}/${worksChecked} works linked.`
+  );
+
+  await harvestImslpWorkInfoMetadata();
+}
+
+function cleanWikiValue(raw) {
+  if (!raw) return "";
+  return String(raw)
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\{\{[^}]+\}\}/g, " ")
+    .replace(/\[\[(?:[^|\]]+\|)?([^\]]+)\]\]/g, "$1")
+    .replace(/'''?/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseImslpWorkInfo(wikitext) {
+  if (!wikitext) return {};
+  const result = {};
+
+  const getField = (names) => {
+    for (const name of names) {
+      const re = new RegExp(`^\\|\\s*${name}\\s*=\\s*(.+)$`, "im");
+      const m = wikitext.match(re);
+      if (m && m[1].trim()) return m[1].trim();
+    }
+    return null;
+  };
+
+  // Year/Date of Composition
+  const rawYear = getField([
+    "Year/Date of Composition",
+    "Date of Composition",
+    "Year of First Publication",
+  ]);
+  if (rawYear) {
+    const ym = rawYear.match(/\b(1[4-9]\d{2}|20[0-2]\d)\b/);
+    if (ym) result.year_composed = Number(ym[1]);
+  }
+
+  // Key
+  const rawKey = getField(["Key"]);
+  if (rawKey) {
+    const cleaned = cleanWikiValue(rawKey);
+    const km = cleaned.match(
+      /\b([A-G](?:-flat|-sharp|\s+flat|\s+sharp|♭|♯)?\s+(?:major|minor))\b/i
+    );
+    if (km) result.key_signature = km[1];
+  }
+
+  // Instrumentation
+  const rawInst = getField(["Instrumentation"]);
+  if (rawInst) {
+    const cleaned = cleanWikiValue(rawInst);
+    if (cleaned.length >= 3 && cleaned.length <= 180) {
+      result.instrumentation = cleaned;
+    } else if (cleaned.length > 180) {
+      result.instrumentation = `${cleaned.slice(0, 177)}...`;
+    }
+  }
+
+  // Average Duration (minutes)
+  const rawDur = getField(["Average Duration"]);
+  if (rawDur) {
+    const cleaned = cleanWikiValue(rawDur);
+    const hm = cleaned.match(/(\d+)\s*(?:hours?|hrs?|h)\s*(?:(\d+)\s*(?:minutes?|mins?|m))?/i);
+    if (hm) {
+      const mins = Number(hm[1]) * 60 + (hm[2] ? Number(hm[2]) : 0);
+      if (mins > 0 && mins <= 360) result.duration_minutes = mins;
+    } else {
+      const mm = cleaned.match(/(\d+)\s*(?:minutes?|mins?|min\.|m\b)/i);
+      if (mm) {
+        const mins = Number(mm[1]);
+        if (mins > 0 && mins <= 360) result.duration_minutes = mins;
+      }
+    }
+  }
+
+  // Movements/Sections count
+  const rawMvts = getField(["Movements/Sections"]);
+  if (rawMvts) {
+    const cleaned = cleanWikiValue(rawMvts);
+    const mv = cleaned.match(/\b(\d{1,2})\s*(?:movements?|sections?|pieces?|parts?|acts?|books?|suites?|sonatas?|etudes?|preludes?)/i);
+    if (mv) {
+      const count = Number(mv[1]);
+      if (count > 0 && count <= 60) result.movements_count = count;
+    }
+  }
+
+  return result;
+}
+
+function extractPageTitleFromImslpUrl(url) {
+  if (!url) return null;
+  const idx = url.indexOf("/wiki/");
+  if (idx === -1) return null;
+  try {
+    return decodeURIComponent(url.slice(idx + "/wiki/".length)).replace(/_/g, " ");
+  } catch {
+    return url.slice(idx + "/wiki/".length).replace(/_/g, " ");
+  }
+}
+
+/**
+ * Batch-fetches IMSLP {{Work Info}} wikitext (20 pages per API request!)
+ * to fill missing year_composed, key_signature, instrumentation, duration_minutes,
+ * and movements_count on works that already have an imslp_url.
+ */
+async function harvestImslpWorkInfoMetadata() {
+  const HARVEST_LIMIT = Math.max(
+    20,
+    Number(process.env.IMSLP_HARVEST_LIMIT || 200)
+  );
+  console.log(
+    `\nHarvesting IMSLP {{Work Info}} metadata (up to ${HARVEST_LIMIT} linked works)...`
+  );
+
+  const { data: works, error } = await supabase
+    .from("works")
+    .select(
+      "id, imslp_url, year_composed, key_signature, instrumentation, duration_minutes, movements_count"
+    )
+    .not("imslp_url", "is", null)
+    .or(
+      "year_composed.is.null,instrumentation.is.null,duration_minutes.is.null,key_signature.is.null,movements_count.is.null"
+    )
+    .order("is_popular", { ascending: false })
+    .order("imslp_synced_at", { ascending: true, nullsFirst: true })
+    .limit(HARVEST_LIMIT);
+
+  if (error || !works || works.length === 0) {
+    console.log("No linked works needing IMSLP metadata harvest.");
+    return;
+  }
+
+  let enrichedCount = 0;
+
+  // Query 20 IMSLP pages in a single MediaWiki API call
+  for (let i = 0; i < works.length; i += 20) {
+    const batch = works.slice(i, i + 20);
+    const titleToWorks = new Map();
+    const titles = [];
+
+    for (const w of batch) {
+      const title = extractPageTitleFromImslpUrl(w.imslp_url);
+      if (!title) continue;
+      if (!titleToWorks.has(title)) {
+        titleToWorks.set(title, []);
+        titles.push(title);
+      }
+      titleToWorks.get(title).push(w);
+    }
+
+    if (titles.length === 0) continue;
+
+    const data = await imslpFetch({
+      action: "query",
+      prop: "revisions",
+      rvprop: "content",
+      rvslots: "main",
+      titles: titles.join("|"),
+    });
+
+    const pages = Object.values(data?.query?.pages ?? {});
+    const nowIso = new Date().toISOString();
+    const patches = [];
+
+    for (const page of pages) {
+      const pageTitle = page.title;
+      const wikitext =
+        page?.revisions?.[0]?.slots?.main?.["*"] ||
+        page?.revisions?.[0]?.["*"] ||
+        "";
+      const parsed = parseImslpWorkInfo(wikitext);
+      const matchedWorks = titleToWorks.get(pageTitle) ?? [];
+
+      for (const w of matchedWorks) {
+        const patch = { imslp_synced_at: nowIso };
+        let changed = false;
+        if (w.year_composed == null && parsed.year_composed != null) {
+          patch.year_composed = parsed.year_composed;
+          changed = true;
+        }
+        if (!w.key_signature && parsed.key_signature) {
+          patch.key_signature = parsed.key_signature;
+          changed = true;
+        }
+        if (!w.instrumentation && parsed.instrumentation) {
+          patch.instrumentation = parsed.instrumentation;
+          changed = true;
+        }
+        if (w.duration_minutes == null && parsed.duration_minutes != null) {
+          patch.duration_minutes = parsed.duration_minutes;
+          changed = true;
+        }
+        if (w.movements_count == null && parsed.movements_count != null) {
+          patch.movements_count = parsed.movements_count;
+          changed = true;
+        }
+        if (changed) enrichedCount++;
+        patches.push({ id: w.id, patch });
+      }
+    }
+
+    await Promise.all(
+      patches.map(({ id, patch }) =>
+        supabase.from("works").update(patch).eq("id", id)
+      )
+    );
+    await sleep(250);
+  }
+
+  console.log(
+    `IMSLP {{Work Info}} harvest complete: enriched ${enrichedCount}/${works.length} works.`
   );
 }
 

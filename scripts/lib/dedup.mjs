@@ -33,7 +33,18 @@ export function extractLastName(name, sortName) {
 }
 
 export const CATALOG_REGEX =
-  /\b(Op\.?\s*\d+[a-z]?(?:,\s*No\.?\s*\d+)?|BWV\s*\d+[a-z]?|K\.?\s*\d+[a-z]?|KV\.?\s*\d+[a-z]?|Hob\.?\s*[IVXLCa-z]+:\s*\d+[a-z]?|RV\s*\d+[a-z]?|D\.?\s*\d+[a-z]?|S\.?\s*\d+(?:\/\d+)?|WWV\s*\d+[A-Z]?|WoO\s*\d+(?:,\s*No\.?\s*\d+)?|HWV\s*\d+[a-z]?|L\.?\s*\d+|M\.?\s*\d+|Z\.?\s*\d+|Sz\.?\s*\d+|TWV\s*\d+:\w+|B\.?\s*\d+|H\.?\s*\d+)\b/i;
+  /\b(Op\.?\s*\d+[a-z]?(?:,\s*No\.?\s*\d+)?|BWV\s*\d+[a-z]?|K\.?\s*\d+[a-z]?|KV\.?\s*\d+[a-z]?|Hob\.?\s*[IVXLCa-z]+:\s*\d+[a-z]?|RV\s*\d+[a-z]?|D\.?\s*\d+[a-z]?|S\.?\s*\d+(?:\/\d+)?|WWV\s*\d+[A-Z]?|WoO\s*\d+(?:,\s*No\.?\s*\d+)?|HWV\s*\d+[a-z]?|L\.?\s*\d+|M\.?\s*\d+|Z\.?\s*\d+|Sz\.?\s*\d+|TWV\s*\d+:\w+|B\.?\s*\d+|H\.?\s*\d+|G\.?\s*\d+[a-z]?|MWV\s*[A-Z]\s*\d+|TH\s*\d+|CT\s*\d+|FS\s*\d+|JB\s*\d+:\d+|WAB\s*\d+|TrV\s*\d+|FP\s*\d+|JW\s*[IVX]+\/\d+|MS\s*\d+|EG\s*\d+)\b/i;
+
+/**
+ * Detects individual movement / song-cycle sub-work titles from MusicBrainz
+ * (e.g. "Concerto: I. Allegro", "6 Chansons: No. 6. Verger") so they are not
+ * imported as top-level standalone works.
+ */
+export function isMovementSubworkTitle(title) {
+  return /:\s*([IVXLCDM]+\.|No\.\s*\d+\.|[1-9]\d?\.\s+[A-Za-z])/.test(
+    String(title || "")
+  );
+}
 
 export function extractCatalog(title) {
   const match = String(title || "").match(CATALOG_REGEX);
@@ -54,7 +65,9 @@ export function extractCatalog(title) {
   else if (/^sz\.?$/i.test(system)) system = "Sz.";
   else if (/^b\.?$/i.test(system)) system = "B.";
   else if (/^h\.?$/i.test(system)) system = "H.";
+  else if (/^g\.?$/i.test(system)) system = "G.";
   else if (/^woo$/i.test(system)) system = "WoO";
+  else if (/^trv$/i.test(system)) system = "TrV";
   else system = system.toUpperCase();
 
   return {

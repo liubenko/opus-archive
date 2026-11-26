@@ -21,6 +21,7 @@ import {
   buildWorkMatcher,
   extractCatalog,
   extractKey,
+  isMovementSubworkTitle,
   mapWorkGenre,
   normalizeText,
 } from "./lib/dedup.mjs";
@@ -214,6 +215,7 @@ async function main() {
     for (const mbWork of mbWorks) {
       const cleanTitle = String(mbWork.title || "").trim();
       if (!cleanTitle) continue;
+      if (isMovementSubworkTitle(cleanTitle)) continue;
 
       const { catalog_system, catalog_number } = extractCatalog(cleanTitle);
       const keySig = extractMbKeyAttribute(mbWork);

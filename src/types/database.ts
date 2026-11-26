@@ -156,6 +156,47 @@ export type Database = {
         };
         Relationships: [];
       };
+      work_movements: {
+        Row: {
+          created_at: string;
+          duration_seconds: number | null;
+          id: number;
+          key_signature: string | null;
+          movement_number: number;
+          tempo_marking: string | null;
+          title: string;
+          work_id: number;
+        };
+        Insert: {
+          created_at?: string;
+          duration_seconds?: number | null;
+          id?: never;
+          key_signature?: string | null;
+          movement_number: number;
+          tempo_marking?: string | null;
+          title: string;
+          work_id: number;
+        };
+        Update: {
+          created_at?: string;
+          duration_seconds?: number | null;
+          id?: never;
+          key_signature?: string | null;
+          movement_number?: number;
+          tempo_marking?: string | null;
+          title?: string;
+          work_id?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "work_movements_work_id_fkey";
+            columns: ["work_id"];
+            isOneToOne: false;
+            referencedRelation: "works";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       works: {
         Row: {
           catalog_display: string | null;
@@ -271,6 +312,8 @@ export type Database = {
 
 export type Composer = Database["public"]["Tables"]["composers"]["Row"];
 export type Work = Database["public"]["Tables"]["works"]["Row"];
+export type WorkMovement =
+  Database["public"]["Tables"]["work_movements"]["Row"];
 export type ComposerRelation =
   Database["public"]["Tables"]["composer_relations"]["Row"];
 export type SiteSettings =
