@@ -59,9 +59,14 @@ function slugify(text: string) {
 export function AdminPanel() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [authMode, setAuthMode] = useState<
+    "password" | "magic_link" | "forgot_password" | "set_new_password"
+  >("password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
 
   const [activeTab, setActiveTab] = useState<TabId>("overview");
@@ -128,8 +133,12 @@ export function AdminPanel() {
         setAuthLoading(false);
       }
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((_ev, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((ev, session) => {
       setUser(session?.user ?? null);
+      if (ev === "PASSWORD_RECOVERY") {
+        setAuthMode("set_new_password");
+        setAuthNotice("Enter a new password for your admin account.");
+      }
     });
     return () => {
       mounted = false;
@@ -228,7 +237,43 @@ export function AdminPanel() {
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
     setAuthError(null);
+    setAuthNotice(null);
     setSigningIn(true);
+
+    const redirectTo = `${window.location.origin}/admin`;
+
+    if (authMode === "magic_link") {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: { emailRedirectTo: redirectTo },
+      });
+      setSigningIn(false);
+      if (error) {
+        setAuthError(error.message);
+      } else {
+        setAuthNotice(
+          `Login link sent to ${email.trim()}. Check your inbox and click the link to sign in.`
+        );
+      }
+      return;
+    }
+
+    if (authMode === "forgot_password") {
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        email.trim(),
+        { redirectTo }
+      );
+      setSigningIn(false);
+      if (error) {
+        setAuthError(error.message);
+      } else {
+        setAuthNotice(
+          `Password reset link sent to ${email.trim()}. Open the link from your email to set a new password.`
+        );
+      }
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
@@ -237,6 +282,26 @@ export function AdminPanel() {
     if (error) {
       setAuthError(error.message);
     }
+  }
+
+  async function handleUpdatePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setAuthError(null);
+    setAuthNotice(null);
+    if (newPassword.length < 6) {
+      setAuthError("Password must be at least 6 characters.");
+      return;
+    }
+    setSigningIn(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setSigningIn(false);
+    if (error) {
+      setAuthError(error.message);
+      return;
+    }
+    setNewPassword("");
+    setAuthMode("password");
+    showToast("success", "Password updated!");
   }
 
   async function handleSignOut() {
@@ -439,6 +504,58 @@ export function AdminPanel() {
     );
   }
 
+  if (authMode === "set_new_password" && user) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-16 sm:py-24">
+        <div className="bg-white dark:bg-[#191714] rounded-3xl border border-stone-200 dark:border-stone-800 p-8 shadow-sm space-y-6">
+          <div className="space-y-2 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-[#1a1816] dark:bg-[#d4af6a] text-[#e8d5b0] dark:text-[#11100e] flex items-center justify-center mx-auto">
+              <Shield className="w-6 h-6" />
+            </div>
+            <h1 className="font-serif text-2xl font-bold text-stone-900 dark:text-[#f3efe6]">
+              Set New Password
+            </h1>
+            <p className="text-xs text-stone-500 dark:text-stone-400">
+              Choose a new password for <strong>{user.email}</strong>.
+            </p>
+          </div>
+
+          <form onSubmit={handleUpdatePassword} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-stone-700 dark:text-stone-300 block">
+                New Password
+              </label>
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="At least 6 characters"
+                className="w-full px-3.5 py-2.5 text-sm rounded-xl bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100 focus:outline-none focus:border-[#9a7432] dark:focus:border-[#d4af6a]"
+              />
+            </div>
+
+            {authError && (
+              <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800/70 text-xs text-red-800 dark:text-red-200 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {authError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={signingIn}
+              className="w-full py-2.5 rounded-xl bg-[#1a1816] dark:bg-[#d4af6a] text-white dark:text-[#11100e] text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
+            >
+              {signingIn ? "Updating..." : "Save New Password"}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="max-w-md mx-auto px-4 py-16 sm:py-24">
@@ -451,9 +568,46 @@ export function AdminPanel() {
               Opus Archive Admin
             </h1>
             <p className="text-xs text-stone-500 dark:text-stone-400">
-              Sign in with your Supabase admin account to manage composers,
-              works, lineage connections, and site settings.
+              {authMode === "password" &&
+                "Sign in with your Opus Archive admin account."}
+              {authMode === "magic_link" &&
+                "Enter your email to receive a one-click sign-in link."}
+              {authMode === "forgot_password" &&
+                "Enter your email to receive a password reset link."}
             </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-[#f3efe8] dark:bg-[#141210] border border-stone-200 dark:border-stone-800">
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode("password");
+                setAuthError(null);
+                setAuthNotice(null);
+              }}
+              className={`py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                authMode === "password" || authMode === "forgot_password"
+                  ? "bg-white dark:bg-[#23201c] text-stone-900 dark:text-stone-100 shadow-xs"
+                  : "text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200"
+              }`}
+            >
+              Password
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode("magic_link");
+                setAuthError(null);
+                setAuthNotice(null);
+              }}
+              className={`py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                authMode === "magic_link"
+                  ? "bg-white dark:bg-[#23201c] text-stone-900 dark:text-stone-100 shadow-xs"
+                  : "text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200"
+              }`}
+            >
+              Email Login Link
+            </button>
           </div>
 
           <form onSubmit={handleSignIn} className="space-y-4">
@@ -471,19 +625,34 @@ export function AdminPanel() {
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-stone-700 dark:text-stone-300 block">
-                Password
-              </label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-3.5 py-2.5 text-sm rounded-xl bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100 focus:outline-none focus:border-[#9a7432] dark:focus:border-[#d4af6a]"
-              />
-            </div>
+            {authMode === "password" && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-stone-700 dark:text-stone-300">
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("forgot_password");
+                      setAuthError(null);
+                      setAuthNotice(null);
+                    }}
+                    className="text-xs text-[#9a7432] dark:text-[#d4af6a] hover:underline cursor-pointer"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100 focus:outline-none focus:border-[#9a7432] dark:focus:border-[#d4af6a]"
+                />
+              </div>
+            )}
 
             {authError && (
               <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800/70 text-xs text-red-800 dark:text-red-200 flex items-center gap-2">
@@ -492,13 +661,40 @@ export function AdminPanel() {
               </div>
             )}
 
+            {authNotice && (
+              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/70 text-xs text-emerald-800 dark:text-emerald-200 flex items-center gap-2">
+                <Check className="w-4 h-4 shrink-0" />
+                {authNotice}
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={signingIn}
               className="w-full py-2.5 rounded-xl bg-[#1a1816] dark:bg-[#d4af6a] text-white dark:text-[#11100e] text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
             >
-              {signingIn ? "Signing in..." : "Sign In"}
+              {signingIn
+                ? "Please wait..."
+                : authMode === "magic_link"
+                  ? "Send Login Link"
+                  : authMode === "forgot_password"
+                    ? "Send Password Reset Link"
+                    : "Sign In"}
             </button>
+
+            {authMode === "forgot_password" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("password");
+                  setAuthError(null);
+                  setAuthNotice(null);
+                }}
+                className="w-full text-xs text-stone-500 dark:text-stone-400 hover:underline cursor-pointer"
+              >
+                Back to password sign-in
+              </button>
+            )}
           </form>
         </div>
       </div>
