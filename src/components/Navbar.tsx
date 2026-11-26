@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Music2, Library, Network, Users } from "lucide-react";
+import { Music2, Library, Network, Users, Bookmark } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
 const NAV_ITEMS = [
   { href: "/", label: "Composers", icon: Users },
   { href: "/works", label: "Works Index", icon: Library },
   { href: "/explore", label: "Graph & Analytics", icon: Network },
+  { href: "/studio", label: "My Studio", icon: Bookmark },
 ];
 
 export function Navbar() {

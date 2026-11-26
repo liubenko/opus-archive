@@ -123,6 +123,93 @@ export type Database = {
         };
         Relationships: [];
       };
+      recital_program_items: {
+        Row: {
+          created_at: string;
+          custom_duration_minutes: number | null;
+          half: number;
+          id: number;
+          position: number;
+          program_id: number;
+          program_note: string | null;
+          user_id: string;
+          work_id: number;
+        };
+        Insert: {
+          created_at?: string;
+          custom_duration_minutes?: number | null;
+          half?: number;
+          id?: never;
+          position?: number;
+          program_id: number;
+          program_note?: string | null;
+          user_id?: string;
+          work_id: number;
+        };
+        Update: {
+          created_at?: string;
+          custom_duration_minutes?: number | null;
+          half?: number;
+          id?: never;
+          position?: number;
+          program_id?: number;
+          program_note?: string | null;
+          user_id?: string;
+          work_id?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "recital_program_items_program_id_fkey";
+            columns: ["program_id"];
+            isOneToOne: false;
+            referencedRelation: "recital_programs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "recital_program_items_work_id_fkey";
+            columns: ["work_id"];
+            isOneToOne: false;
+            referencedRelation: "works";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      recital_programs: {
+        Row: {
+          created_at: string;
+          event_date: string | null;
+          id: number;
+          intermission_minutes: number;
+          notes: string | null;
+          title: string;
+          updated_at: string;
+          user_id: string;
+          venue: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          event_date?: string | null;
+          id?: never;
+          intermission_minutes?: number;
+          notes?: string | null;
+          title: string;
+          updated_at?: string;
+          user_id?: string;
+          venue?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          event_date?: string | null;
+          id?: never;
+          intermission_minutes?: number;
+          notes?: string | null;
+          title?: string;
+          updated_at?: string;
+          user_id?: string;
+          venue?: string | null;
+        };
+        Relationships: [];
+      };
       site_settings: {
         Row: {
           footer_note: string;
@@ -155,6 +242,50 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      user_repertoire: {
+        Row: {
+          created_at: string;
+          difficulty: number | null;
+          id: number;
+          last_practiced_at: string | null;
+          notes: string | null;
+          status: string;
+          updated_at: string;
+          user_id: string;
+          work_id: number;
+        };
+        Insert: {
+          created_at?: string;
+          difficulty?: number | null;
+          id?: never;
+          last_practiced_at?: string | null;
+          notes?: string | null;
+          status?: string;
+          updated_at?: string;
+          user_id?: string;
+          work_id: number;
+        };
+        Update: {
+          created_at?: string;
+          difficulty?: number | null;
+          id?: never;
+          last_practiced_at?: string | null;
+          notes?: string | null;
+          status?: string;
+          updated_at?: string;
+          user_id?: string;
+          work_id?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "user_repertoire_work_id_fkey";
+            columns: ["work_id"];
+            isOneToOne: false;
+            referencedRelation: "works";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       work_movements: {
         Row: {
@@ -333,6 +464,12 @@ export type ComposerRelation =
   Database["public"]["Tables"]["composer_relations"]["Row"];
 export type SiteSettings =
   Database["public"]["Tables"]["site_settings"]["Row"];
+export type UserRepertoire =
+  Database["public"]["Tables"]["user_repertoire"]["Row"];
+export type RecitalProgram =
+  Database["public"]["Tables"]["recital_programs"]["Row"];
+export type RecitalProgramItem =
+  Database["public"]["Tables"]["recital_program_items"]["Row"];
 export type SearchCatalogResult =
   Database["public"]["Functions"]["search_catalog"]["Returns"][number];
 

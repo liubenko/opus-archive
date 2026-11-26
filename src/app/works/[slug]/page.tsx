@@ -21,6 +21,7 @@ import { formatLifespan, getEraStyle } from "@/lib/constants";
 import { ComposerAvatar } from "@/components/ComposerAvatar";
 import { WorkListeningPanel } from "@/components/WorkListeningPanel";
 import { WorkImslpEditions } from "@/components/WorkImslpEditions";
+import { WorkWorkspaceActions } from "@/components/WorkWorkspaceActions";
 
 export const dynamic = "force-dynamic";
 
@@ -299,6 +300,11 @@ export default async function WorkDetailPage({ params }: WorkPageProps) {
               View JSON API
               <ExternalLink className="w-3 h-3 opacity-70" />
             </a>
+
+            <WorkWorkspaceActions
+              workId={work.id}
+              defaultDuration={work.duration_minutes}
+            />
           </div>
         </div>
 
