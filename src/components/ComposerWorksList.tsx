@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Clock, Layers, Search, Sparkles, Music, FileMusic, ExternalLink } from "lucide-react";
 import type { Work } from "@/types/database";
 
@@ -121,7 +122,12 @@ export function ComposerWorksList({ works }: ComposerWorksListProps) {
                       </span>
                     )}
                     <h3 className="font-serif text-base sm:text-lg font-semibold text-stone-900 dark:text-[#f3efe6]">
-                      {work.title}
+                      <Link
+                        href={`/works/${work.slug || work.id}`}
+                        className="hover:text-[#9a7432] dark:hover:text-[#d4af6a] transition-colors"
+                      >
+                        {work.title}
+                      </Link>
                     </h3>
                     {work.is_popular && (
                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-200/80 dark:border-amber-800/70">

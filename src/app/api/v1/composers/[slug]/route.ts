@@ -37,7 +37,7 @@ export async function GET(request: Request, context: RouteContext) {
   let worksQuery = supabase
     .from("works")
     .select(
-      "id, title, nickname, catalog_system, catalog_number, catalog_display, genre, key_signature, year_composed, instrumentation, movements_count, duration_minutes, is_popular, description, imslp_url",
+      "id, slug, title, nickname, catalog_system, catalog_number, catalog_display, genre, key_signature, year_composed, instrumentation, movements_count, duration_minutes, is_popular, description, imslp_url",
       { count: "exact" }
     )
     .eq("composer_id", composer.id);

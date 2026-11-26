@@ -198,7 +198,7 @@ export function CatalogSearchBar() {
                     {workHits.map((hit) => (
                       <Link
                         key={`work-${hit.id}`}
-                        href={`/composers/${hit.composer_slug}#work-${hit.id}`}
+                        href={`/works/${hit.id}`}
                         onClick={() => setIsOpen(false)}
                         className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-stone-50 dark:hover:bg-[#23201c] transition-colors group"
                       >

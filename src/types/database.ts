@@ -216,6 +216,7 @@ export type Database = {
           movements_count: number | null;
           nickname: string | null;
           search_vector: unknown;
+          slug: string | null;
           title: string;
           year_composed: number | null;
         };
@@ -237,6 +238,7 @@ export type Database = {
           movements_count?: number | null;
           nickname?: string | null;
           search_vector?: unknown;
+          slug?: string | null;
           title: string;
           year_composed?: number | null;
         };
@@ -258,6 +260,7 @@ export type Database = {
           movements_count?: number | null;
           nickname?: string | null;
           search_vector?: unknown;
+          slug?: string | null;
           title?: string;
           year_composed?: number | null;
         };

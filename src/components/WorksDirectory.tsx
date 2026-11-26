@@ -391,11 +391,7 @@ export function WorksDirectory({
                       </td>
                       <td className="py-3.5 px-4 align-top max-w-md">
                         <Link
-                          href={
-                            composer
-                              ? `/composers/${composer.slug}#work-${work.id}`
-                              : "#"
-                          }
+                          href={`/works/${work.slug || work.id}`}
                           className="font-serif font-semibold text-stone-900 dark:text-[#f3efe6] hover:text-[#9a7432] dark:hover:text-[#d4af6a] transition-colors block leading-snug"
                         >
                           {work.title}
