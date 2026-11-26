@@ -6,6 +6,7 @@ import { ArrowRight, Filter, Music, Globe, Search, FileMusic } from "lucide-reac
 import type { ComposerWithWorkCount } from "@/types/database";
 import { ERA_ORDER, formatLifespan, getEraStyle } from "@/lib/constants";
 import { ComposerAvatar } from "./ComposerAvatar";
+import { SelectMenu } from "./SelectMenu";
 
 interface ComposerDirectoryProps {
   composers: ComposerWithWorkCount[];
@@ -112,47 +113,33 @@ export function ComposerDirectory({ composers }: ComposerDirectoryProps) {
             />
           </div>
 
-          <div className="inline-flex items-center gap-1.5 bg-white dark:bg-[#191714] border border-stone-200 dark:border-stone-800 rounded-lg px-2.5 py-1.5 text-xs">
-            <Globe className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500" />
-            <select
-              value={selectedNationality}
-              onChange={(e) => setSelectedNationality(e.target.value)}
-              aria-label="Filter by nationality"
-              className="bg-transparent text-stone-700 dark:text-stone-200 font-medium focus:outline-none cursor-pointer"
-            >
-              <option value="All" className="dark:bg-[#191714]">
-                All Nationalities
-              </option>
-              {availableNationalities.map((nat) => (
-                <option key={nat} value={nat} className="dark:bg-[#191714]">
-                  {nat}
-                </option>
-              ))}
-            </select>
-          </div>
+          <SelectMenu
+            value={selectedNationality}
+            onChange={setSelectedNationality}
+            ariaLabel="Filter by nationality"
+            icon={<Globe className="w-3.5 h-3.5" />}
+            options={[
+              { value: "All", label: "All Nationalities" },
+              ...availableNationalities.map((nat) => ({
+                value: nat,
+                label: nat,
+              })),
+            ]}
+          />
 
-          <div className="inline-flex items-center gap-1.5 bg-white dark:bg-[#191714] border border-stone-200 dark:border-stone-800 rounded-lg px-2.5 py-1.5 text-xs">
-            <Filter className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              aria-label="Sort composers"
-              className="bg-transparent text-stone-700 dark:text-stone-200 font-medium focus:outline-none cursor-pointer"
-            >
-              <option value="chronological" className="dark:bg-[#191714]">
-                Chronological (Birth Year)
-              </option>
-              <option value="rank" className="dark:bg-[#191714]">
-                Curated Order
-              </option>
-              <option value="alphabetical" className="dark:bg-[#191714]">
-                Alphabetical (Last Name)
-              </option>
-              <option value="most_works" className="dark:bg-[#191714]">
-                Most Works
-              </option>
-            </select>
-          </div>
+          <SelectMenu
+            value={sortBy}
+            onChange={(v) => setSortBy(v as SortOption)}
+            ariaLabel="Sort composers"
+            align="right"
+            icon={<Filter className="w-3.5 h-3.5" />}
+            options={[
+              { value: "chronological", label: "Chronological (Birth Year)" },
+              { value: "rank", label: "Curated Order" },
+              { value: "alphabetical", label: "Alphabetical (Last Name)" },
+              { value: "most_works", label: "Most Works" },
+            ]}
+          />
         </div>
       </div>
 

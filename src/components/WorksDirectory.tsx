@@ -19,6 +19,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import type { WorkWithComposer } from "@/types/database";
 import { ERA_ORDER, getEraStyle } from "@/lib/constants";
+import { SelectMenu } from "./SelectMenu";
 
 const GENRE_OPTIONS = [
   "Symphony",
@@ -293,44 +294,37 @@ export function WorksDirectory({
             Smart Repertoire Finder:
           </span>
           <span>Find me a</span>
-          <select
+          <SelectMenu
+            variant="inline"
             value={durationFilter}
-            onChange={(e) => setDurationFilter(e.target.value)}
-            aria-label="Smart finder duration"
-            className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#141210] border border-stone-300 dark:border-stone-700 font-semibold text-stone-900 dark:text-[#f3efe6] cursor-pointer"
-          >
-            {DURATION_PRESETS.map((d) => (
-              <option key={d.value} value={d.value}>
-                {d.value === "All" ? "any-length" : d.label.toLowerCase()}
-              </option>
-            ))}
-          </select>
-          <select
+            onChange={setDurationFilter}
+            ariaLabel="Smart finder duration"
+            options={DURATION_PRESETS.map((d) => ({
+              value: d.value,
+              label: d.value === "All" ? "any-length" : d.label.toLowerCase(),
+            }))}
+          />
+          <SelectMenu
+            variant="inline"
             value={eraFilter}
-            onChange={(e) => setEraFilter(e.target.value)}
-            aria-label="Smart finder era"
-            className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#141210] border border-stone-300 dark:border-stone-700 font-semibold text-stone-900 dark:text-[#f3efe6] cursor-pointer"
-          >
-            <option value="All">any-era</option>
-            {ERA_ORDER.map((e) => (
-              <option key={e} value={e}>
-                {e}
-              </option>
-            ))}
-          </select>
+            onChange={setEraFilter}
+            ariaLabel="Smart finder era"
+            options={[
+              { value: "All", label: "any-era" },
+              ...ERA_ORDER.map((e) => ({ value: e, label: e })),
+            ]}
+          />
           <span>piece for</span>
-          <select
+          <SelectMenu
+            variant="inline"
             value={instrumentFilter}
-            onChange={(e) => setInstrumentFilter(e.target.value)}
-            aria-label="Smart finder instrument"
-            className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#141210] border border-stone-300 dark:border-stone-700 font-semibold text-stone-900 dark:text-[#f3efe6] cursor-pointer"
-          >
-            {INSTRUMENT_PRESETS.map((i) => (
-              <option key={i.value} value={i.value}>
-                {i.value === "All" ? "any instrument" : i.label}
-              </option>
-            ))}
-          </select>
+            onChange={setInstrumentFilter}
+            ariaLabel="Smart finder instrument"
+            options={INSTRUMENT_PRESETS.map((i) => ({
+              value: i.value,
+              label: i.value === "All" ? "any instrument" : i.label,
+            }))}
+          />
         </div>
 
         <button
@@ -359,53 +353,35 @@ export function WorksDirectory({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <select
+            <SelectMenu
               value={eraFilter}
-              onChange={(e) => setEraFilter(e.target.value)}
-              aria-label="Filter by era"
-              className="px-3 py-2.5 text-xs font-medium bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 rounded-xl text-stone-700 dark:text-stone-200 focus:outline-none focus:border-[#9a7432] dark:focus:border-[#d4af6a] cursor-pointer"
-            >
-              <option value="All" className="dark:bg-[#191714]">
-                All Eras
-              </option>
-              {ERA_ORDER.map((e) => (
-                <option key={e} value={e} className="dark:bg-[#191714]">
-                  {e}
-                </option>
-              ))}
-            </select>
+              onChange={setEraFilter}
+              ariaLabel="Filter by era"
+              options={[
+                { value: "All", label: "All Eras" },
+                ...ERA_ORDER.map((e) => ({ value: e, label: e })),
+              ]}
+            />
 
-            <select
+            <SelectMenu
               value={genreFilter}
-              onChange={(e) => setGenreFilter(e.target.value)}
-              aria-label="Filter by genre"
-              className="px-3 py-2.5 text-xs font-medium bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 rounded-xl text-stone-700 dark:text-stone-200 focus:outline-none focus:border-[#9a7432] dark:focus:border-[#d4af6a] cursor-pointer"
-            >
-              <option value="All" className="dark:bg-[#191714]">
-                All Genres
-              </option>
-              {GENRE_OPTIONS.map((g) => (
-                <option key={g} value={g} className="dark:bg-[#191714]">
-                  {g}
-                </option>
-              ))}
-            </select>
+              onChange={setGenreFilter}
+              ariaLabel="Filter by genre"
+              options={[
+                { value: "All", label: "All Genres" },
+                ...GENRE_OPTIONS.map((g) => ({ value: g, label: g })),
+              ]}
+            />
 
-            <select
+            <SelectMenu
               value={catalogFilter}
-              onChange={(e) => setCatalogFilter(e.target.value)}
-              aria-label="Filter by catalog system"
-              className="px-3 py-2.5 text-xs font-medium bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 rounded-xl text-stone-700 dark:text-stone-200 focus:outline-none focus:border-[#9a7432] dark:focus:border-[#d4af6a] cursor-pointer"
-            >
-              <option value="All" className="dark:bg-[#191714]">
-                All Catalogs
-              </option>
-              {CATALOG_OPTIONS.map((c) => (
-                <option key={c} value={c} className="dark:bg-[#191714]">
-                  {c}
-                </option>
-              ))}
-            </select>
+              onChange={setCatalogFilter}
+              ariaLabel="Filter by catalog system"
+              options={[
+                { value: "All", label: "All Catalogs" },
+                ...CATALOG_OPTIONS.map((c) => ({ value: c, label: c })),
+              ]}
+            />
 
             <button
               type="button"
@@ -455,47 +431,30 @@ export function WorksDirectory({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <select
+            <SelectMenu
               value={durationFilter}
-              onChange={(e) => setDurationFilter(e.target.value)}
-              aria-label="Filter by duration"
-              className="px-2.5 py-1.5 text-xs font-medium bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 rounded-xl text-stone-700 dark:text-stone-200 cursor-pointer"
-            >
-              {DURATION_PRESETS.map((d) => (
-                <option key={d.value} value={d.value} className="dark:bg-[#191714]">
-                  {d.label}
-                </option>
-              ))}
-            </select>
+              onChange={setDurationFilter}
+              ariaLabel="Filter by duration"
+              options={DURATION_PRESETS}
+            />
 
-            <select
+            <SelectMenu
               value={keyFilter}
-              onChange={(e) => setKeyFilter(e.target.value)}
-              aria-label="Filter by key signature"
-              className="px-2.5 py-1.5 text-xs font-medium bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 rounded-xl text-stone-700 dark:text-stone-200 cursor-pointer"
-            >
-              <option value="All" className="dark:bg-[#191714]">
-                Any Key
-              </option>
-              {KEY_OPTIONS.map((k) => (
-                <option key={k} value={k} className="dark:bg-[#191714]">
-                  {k}
-                </option>
-              ))}
-            </select>
+              onChange={setKeyFilter}
+              ariaLabel="Filter by key signature"
+              options={[
+                { value: "All", label: "Any Key" },
+                ...KEY_OPTIONS.map((k) => ({ value: k, label: k })),
+              ]}
+            />
 
-            <select
+            <SelectMenu
               value={periodFilter}
-              onChange={(e) => setPeriodFilter(e.target.value)}
-              aria-label="Filter by composition period"
-              className="px-2.5 py-1.5 text-xs font-medium bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 rounded-xl text-stone-700 dark:text-stone-200 cursor-pointer"
-            >
-              {PERIOD_PRESETS.map((p) => (
-                <option key={p.value} value={p.value} className="dark:bg-[#191714]">
-                  {p.label}
-                </option>
-              ))}
-            </select>
+              onChange={setPeriodFilter}
+              ariaLabel="Filter by composition period"
+              align="right"
+              options={PERIOD_PRESETS}
+            />
           </div>
         </div>
 

@@ -9,6 +9,7 @@
 }
 
 :root {
+  color-scheme: light;
   --bg-parchment: #faf8f4;
   --surface-card: #ffffff;
   --ink-primary: #1a1816;
@@ -17,11 +18,22 @@
 }
 
 .dark {
+  color-scheme: dark;
   --bg-parchment: #11100e;
   --surface-card: #191714;
   --ink-primary: #f3efe6;
   --ink-muted: #a69e92;
   --accent-gold: #d4af6a;
+}
+
+select option {
+  background-color: #ffffff;
+  color: #1a1816;
+}
+
+.dark select option {
+  background-color: #1c1915;
+  color: #f3efe6;
 }
 
 body {

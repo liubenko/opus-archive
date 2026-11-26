@@ -12,6 +12,7 @@ import {
   getInitials,
 } from "@/lib/constants";
 import { ComposerAvatar } from "./ComposerAvatar";
+import { SelectMenu } from "./SelectMenu";
 
 interface InfluenceGraphProps {
   composers: Composer[];
@@ -216,43 +217,32 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <select
+            <SelectMenu
               value={eraFilter}
-              onChange={(e) => {
-                setEraFilter(e.target.value);
+              onChange={(val) => {
+                setEraFilter(val);
                 setSelectedId(null);
               }}
-              aria-label="Filter graph by era"
-              className="px-2.5 py-1.5 text-xs font-medium bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 rounded-xl text-stone-700 dark:text-stone-200 cursor-pointer"
-            >
-              <option value="All" className="dark:bg-[#191714]">
-                All Eras
-              </option>
-              {ERA_ORDER.map((e) => (
-                <option key={e} value={e} className="dark:bg-[#191714]">
-                  {e}
-                </option>
-              ))}
-            </select>
+              ariaLabel="Filter graph by era"
+              options={[
+                { value: "All", label: "All Eras" },
+                ...ERA_ORDER.map((e) => ({ value: e, label: e })),
+              ]}
+            />
 
-            <select
+            <SelectMenu
               value={nationalityFilter}
-              onChange={(e) => {
-                setNationalityFilter(e.target.value);
+              onChange={(val) => {
+                setNationalityFilter(val);
                 setSelectedId(null);
               }}
-              aria-label="Filter graph by nationality"
-              className="px-2.5 py-1.5 text-xs font-medium bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 rounded-xl text-stone-700 dark:text-stone-200 cursor-pointer"
-            >
-              <option value="All" className="dark:bg-[#191714]">
-                All Nationalities
-              </option>
-              {nationalities.map((nat) => (
-                <option key={nat} value={nat} className="dark:bg-[#191714]">
-                  {nat}
-                </option>
-              ))}
-            </select>
+              ariaLabel="Filter graph by nationality"
+              align="right"
+              options={[
+                { value: "All", label: "All Nationalities" },
+                ...nationalities.map((nat) => ({ value: nat, label: nat })),
+              ]}
+            />
 
             {(selectedId !== null ||
               eraFilter !== "All" ||
