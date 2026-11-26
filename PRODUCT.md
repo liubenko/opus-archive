@@ -29,19 +29,19 @@ Classical musicians, conservatory students, and chamber ensembles constantly jug
 
 ### Free Tier — *Open Public Archive & Starter Musician Workspace*
 - Full catalog access (composers, works, catalog systems, eras, nationalities, instrumentation)
-- Instant full-text & fuzzy search (`search_catalog` RPC) and server-paginated `/works` index
-- Dedicated Composer & SEO-friendly Work pages (`/works/[slug]`) with movement breakdowns and program notes
-- Verified **IMSLP Score** links & composer catalogs
+- Global `⌘K` / `Ctrl+K` command-palette search, Smart Repertoire Finder, and server-paginated `/works` index
+- Homepage *Work of the Day* spotlight, Dedicated Composer pages (with *Contemporaries Lifespan Overlap*), and SEO Work pages (`/works/[slug]`) with movements and community-bookmarked editions/recordings
+- Verified **IMSLP Score** links & public-domain edition browser
 - Reference recording links (YouTube, Spotify, Apple Music Classical)
 - Interactive Composer Influence Graph & Lifespan Timeline (`/explore`)
-- Public read-only REST API (`/api/v1/*`) with edge caching
-- **Starter Musician Quota:** Track up to **20 repertoire pieces** and build **1 active recital program** free so students and performers can adopt Opus Archive immediately
+- Public read-only REST API (`/api/v1/*`) with interactive playground (`/docs/api`)
+- **Starter Musician Quota:** Track up to **20 repertoire pieces**, log practice sessions with the built-in **Practice Timer**, and build & share **1 active recital program** free
 
 ### Pro Tier — *Unlimited Musician Workspace*
-- **Unlimited Personal Repertoire & Practice Tracker** — track unlimited works by status (*Learning*, *Performed*, *Ready*, *Wish List*), difficulty rating, last practiced date, and private performance notes
-- **Unlimited Recital & Concert Program Builder** — drag-and-drop works into halves with intermissions, auto-calculated total duration, automated program notes, and branded PDF export
+- **Unlimited Personal Repertoire & Practice Tracker** — unlimited works across *Learning*, *Performance Ready*, *Performed*, and *Wish List*, plus full practice history & weekly analytics
+- **Unlimited Recital & Concert Program Builder + Shareable Links** — unlimited programs, auto-summed stage timing, branded PDF export, and shareable `/programs/[token]` links for pianists, teachers, and venues
 - **Private Annotations & Score Bookmarks** — personal fingerings/bowings notes, preferred IMSLP edition links, and custom tags
-- **Sync & Export** — CSV/Excel/JSON export and personal API tokens for companion apps
+- **Sync & Export** — CSV/Excel/JSON export and authenticated `/api/v1/me/*` access for companion apps
 
 ---
 

@@ -63,9 +63,70 @@
 
 ---
 
-## Phase 5 — Platform, Interactive API Docs & SEO ✅ *(Custom Domain & Stripe Ready)*
+## Phase 5 — Platform, Interactive API Docs & SEO ✅ *(Custom Domain & Stripe Deferred)*
 
 - [x] Built interactive API Docs & live playground at `/docs/api`
 - [x] Built authenticated personal companion-app endpoints (`/api/v1/me/repertoire`, `/api/v1/me/programs`) scoped via Supabase Bearer JWT + RLS
 - [x] Added dynamic `/sitemap.xml` and `/robots.txt` (with `NEXT_PUBLIC_SITE_URL` support for custom domain migration)
-- [ ] Attach custom domain (when chosen) & configure Stripe Checkout for Pro subscriptions
+- [ ] *(Later)* Attach custom domain & configure Stripe Checkout for Pro subscriptions
+
+---
+
+# v2 — Refinement, Discovery & Practice Expansion
+
+## Phase 6 — Full 314-Composer Enrichment & Catalog Polish (Next Up)
+
+**Goal:** Eliminate missing portraits, finish IMSLP linking across all 314 composers, and bulk-harvest structured work metadata.
+
+- [ ] **Backfill Missing Composer Portraits & Bios (94 composers)**
+  - Fetch Wikimedia portraits (`avatar_url`), `birth_place`, and enriched summaries via Wikipedia REST + Wikidata (`P18` / `P19`) for the 94 composers currently missing avatars
+- [ ] **Complete IMSLP Link Sync (remaining 174 composers)**
+  - Run full IMSLP category + work matching across all remaining unsynced composers
+- [ ] **High-Throughput IMSLP `{{Work Info}}` Harvest (50 pages/request)**
+  - Upgrade `sync-imslp.mjs` to MediaWiki's 50-title batch size and harvest `year_composed`, `duration_minutes`, `key_signature`, `instrumentation`, and `movements_count` across all ~3,000+ linked works
+- [ ] **Work Title & Duplicate Cleanup**
+  - Normalize messy imported work titles and merge any remaining sparse duplicates
+
+---
+
+## Phase 7 — Global `⌘K` Search, Homepage Polish & Discovery Features
+
+**Goal:** Make browsing, discovering repertoire, and exploring music history effortless and delightful.
+
+- [ ] **Global `⌘K` / `Ctrl+K` Command Palette**
+  - Instant keyboard-driven modal accessible from every page (jump to composers, works, opus numbers, My Studio, or filters)
+- [ ] **Homepage Polish & "Featured Work / Historical Spotlight"**
+  - Add *Featured Masterwork of the Day* + *Composer Anniversaries* section on `/`
+  - Upgrade Composer Directory with sort controls (*Chronological*, *Alphabetical*, *Most Works*) and cleaner cards
+- [ ] **Smart Repertoire Finder**
+  - Guided musician prompt bar on `/works` (e.g., *"10–20 min" + "Romantic" + "Cello"* → instant playable concert suggestions)
+- [ ] **"Who Was Alive Then?" Contemporaries Bar**
+  - Visual lifespan overlap chart on each `/composers/[slug]` page showing which other composers overlapped their lifetime
+- [ ] **Community Favorite Editions & Reference Recordings**
+  - Let signed-in musicians upvote/bookmark the best IMSLP edition or reference recording on `/works/[slug]`
+
+---
+
+## Phase 8 — Practice Session Timer, Weekly Stats & Studio UX Polish
+
+**Goal:** Turn `/studio` into a daily practice companion.
+
+- [ ] **Practice Session Stopwatch & Log (`public.practice_sessions`)**
+  - Live start/pause/save practice timer attachable to any repertoire work (plus quick manual minute entry & session focus notes)
+  - Strict `user_id = (select auth.uid())` RLS
+- [ ] **Weekly Practice Analytics & Streak**
+  - 7-day practice minutes bar chart, active day streak, and top-practiced pieces breakdown inside `/studio`
+- [ ] **My Studio UX Polish**
+  - Faster inline editing, mobile-optimized cards, and quick status transitions
+
+---
+
+## Phase 9 — Shareable Recital Program Links
+
+**Goal:** Let musicians share clean concert programs with collaborators and venues in one click.
+
+- [ ] **Public Share Token on `public.recital_programs`**
+  - Add optional `is_public boolean` and unique `share_slug text` to `recital_programs` with public read-only RLS when `is_public = true`
+- [ ] **Public Concert Program View (`/programs/[share_slug]`)**
+  - Clean, distraction-free recital program page showing venue, date, Half I / Intermission / Half II, composer dates, timings, program notes, IMSLP links, and a **Print / Save PDF** button for pianists, teachers, and concert organizers
+
