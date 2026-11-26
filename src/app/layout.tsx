@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Inter, Playfair_Display, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
+import { CommandPalette } from "@/components/CommandPalette";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -57,6 +58,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen flex flex-col bg-[#faf8f4] dark:bg-[#11100e] text-[#1a1816] dark:text-[#f3efe6] transition-colors">
         <Navbar />
+        <CommandPalette />
         <main className="flex-1">{children}</main>
         <footer className="border-t border-stone-200/80 dark:border-stone-800/80 bg-white/70 dark:bg-[#161412]/80 mt-16 print:hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-stone-500 dark:text-stone-400">

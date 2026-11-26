@@ -287,6 +287,41 @@ export type Database = {
           },
         ];
       };
+      work_edition_votes: {
+        Row: {
+          created_at: string;
+          id: number;
+          item_key: string;
+          item_type: string;
+          user_id: string;
+          work_id: number;
+        };
+        Insert: {
+          created_at?: string;
+          id?: never;
+          item_key: string;
+          item_type: string;
+          user_id?: string;
+          work_id: number;
+        };
+        Update: {
+          created_at?: string;
+          id?: never;
+          item_key?: string;
+          item_type?: string;
+          user_id?: string;
+          work_id?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "work_edition_votes_work_id_fkey";
+            columns: ["work_id"];
+            isOneToOne: false;
+            referencedRelation: "works";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       work_movements: {
         Row: {
           created_at: string;

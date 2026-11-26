@@ -15,6 +15,7 @@ import type { Composer, ComposerRelation, Work } from "@/types/database";
 import { formatLifespan, getEraStyle, RELATION_META } from "@/lib/constants";
 import { ComposerAvatar } from "@/components/ComposerAvatar";
 import { ComposerWorksList } from "@/components/ComposerWorksList";
+import { ComposerContemporaries } from "@/components/ComposerContemporaries";
 
 export const dynamic = "force-dynamic";
 
@@ -268,6 +269,22 @@ export default async function ComposerDetailPage({
           </div>
         </section>
       )}
+
+      {/* Who Was Alive Then? Contemporaries Overlap */}
+      <ComposerContemporaries
+        composer={composer}
+        allComposers={(allComposersRes.data ?? []) as Pick<
+          Composer,
+          | "id"
+          | "slug"
+          | "name"
+          | "era"
+          | "nationality"
+          | "birth_year"
+          | "death_year"
+          | "avatar_url"
+        >[]}
+      />
     </div>
   );
 }

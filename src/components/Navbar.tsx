@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Music2, Library, Network, Users, Bookmark } from "lucide-react";
+import { Music2, Library, Network, Users, Bookmark, Search } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
 const NAV_ITEMS = [
@@ -56,6 +56,17 @@ export function Navbar() {
               );
             })}
           </nav>
+          <button
+            type="button"
+            onClick={() =>
+              window.dispatchEvent(new Event("opus:open-command-palette"))
+            }
+            title="Quick Search (Cmd+K)"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-[#191714] text-xs text-stone-500 dark:text-stone-400 hover:border-[#9a7432] dark:hover:border-[#d4af6a] hover:text-stone-900 dark:hover:text-stone-100 transition-colors cursor-pointer"
+          >
+            <Search className="w-3.5 h-3.5" />
+            <span className="hidden md:inline font-mono text-[11px]">⌘K</span>
+          </button>
           <ThemeToggle />
         </div>
       </div>

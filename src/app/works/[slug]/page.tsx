@@ -389,6 +389,7 @@ export default async function WorkDetailPage({ params }: WorkPageProps) {
 
       {/* Listen & Reference Recordings */}
       <WorkListeningPanel
+        workId={work.id}
         title={work.title}
         composerName={composer?.name}
         catalogDisplay={work.catalog_display}
@@ -399,7 +400,9 @@ export default async function WorkDetailPage({ params }: WorkPageProps) {
       />
 
       {/* IMSLP Sheet Music Editions */}
-      {work.imslp_url && <WorkImslpEditions imslpUrl={work.imslp_url} />}
+      {work.imslp_url && (
+        <WorkImslpEditions workId={work.id} imslpUrl={work.imslp_url} />
+      )}
 
       {/* Structured Movements */}
       {movements.length > 0 && (

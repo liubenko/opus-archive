@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Sparkles,
@@ -12,6 +13,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Wand2,
+  Shuffle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { WorkWithComposer } from "@/types/database";
@@ -107,6 +110,7 @@ export function WorksDirectory({
   initialTotal,
   pageSize = 50,
 }: WorksDirectoryProps) {
+  const router = useRouter();
   const [works, setWorks] = useState<WorkWithComposer[]>(initialWorks);
   const [total, setTotal] = useState<number>(initialTotal);
   const [loading, setLoading] = useState(false);
@@ -271,8 +275,75 @@ export function WorksDirectory({
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const rangeEnd = Math.min(page * pageSize, total);
 
+  function handleSurpriseMe() {
+    if (works.length === 0) return;
+    const pick = works[Math.floor(Math.random() * works.length)];
+    if (pick) {
+      router.push(`/works/${pick.slug || pick.id}`);
+    }
+  }
+
   return (
     <div className="space-y-5">
+      {/* Smart Repertoire Finder Banner */}
+      <div className="bg-gradient-to-r from-[#f8f3e8] via-white to-[#f6efe0] dark:from-[#1f1b16] dark:via-[#191714] dark:to-[#211c15] rounded-2xl border border-amber-200/70 dark:border-amber-900/50 p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-stone-700 dark:text-stone-200">
+          <span className="inline-flex items-center gap-1.5 font-semibold text-[#8a6526] dark:text-[#d4af6a]">
+            <Wand2 className="w-4 h-4" />
+            Smart Repertoire Finder:
+          </span>
+          <span>Find me a</span>
+          <select
+            value={durationFilter}
+            onChange={(e) => setDurationFilter(e.target.value)}
+            aria-label="Smart finder duration"
+            className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#141210] border border-stone-300 dark:border-stone-700 font-semibold text-stone-900 dark:text-[#f3efe6] cursor-pointer"
+          >
+            {DURATION_PRESETS.map((d) => (
+              <option key={d.value} value={d.value}>
+                {d.value === "All" ? "any-length" : d.label.toLowerCase()}
+              </option>
+            ))}
+          </select>
+          <select
+            value={eraFilter}
+            onChange={(e) => setEraFilter(e.target.value)}
+            aria-label="Smart finder era"
+            className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#141210] border border-stone-300 dark:border-stone-700 font-semibold text-stone-900 dark:text-[#f3efe6] cursor-pointer"
+          >
+            <option value="All">any-era</option>
+            {ERA_ORDER.map((e) => (
+              <option key={e} value={e}>
+                {e}
+              </option>
+            ))}
+          </select>
+          <span>piece for</span>
+          <select
+            value={instrumentFilter}
+            onChange={(e) => setInstrumentFilter(e.target.value)}
+            aria-label="Smart finder instrument"
+            className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#141210] border border-stone-300 dark:border-stone-700 font-semibold text-stone-900 dark:text-[#f3efe6] cursor-pointer"
+          >
+            {INSTRUMENT_PRESETS.map((i) => (
+              <option key={i.value} value={i.value}>
+                {i.value === "All" ? "any instrument" : i.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <button
+          type="button"
+          disabled={works.length === 0}
+          onClick={handleSurpriseMe}
+          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1a1816] dark:bg-[#d4af6a] text-white dark:text-[#11100e] text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer shrink-0 disabled:opacity-40"
+        >
+          <Shuffle className="w-3.5 h-3.5" />
+          Surprise Me from {total.toLocaleString()}
+        </button>
+      </div>
+
       {/* Filter Bar */}
       <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200/90 dark:border-stone-800/90 p-4 shadow-xs space-y-3">
         <div className="flex flex-col md:flex-row gap-3">
