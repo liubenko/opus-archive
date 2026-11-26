@@ -14,25 +14,38 @@
 - [x] Public REST API v1 (`/api/v1/*`) with CORS and edge caching
 - [x] Secure Admin Panel (`/admin`) with Supabase Auth, `app_metadata.role = 'admin'` RLS, full CRUD, and live `site_settings`
 - [x] IMSLP MediaWiki API integration (`imslp_url` on composers & works, UI buttons, API fields, Admin editor, daily sync)
+- [x] Server-backed `/works` search, instrument chips, IMSLP filter, and pagination across all 23,539+ works
 
 ---
 
-## Phase 1 — Dedicated Work Pages & Deep Metadata (Next Up)
+## Phase 0.5 — Data Hygiene & IMSLP Metadata Harvest (Immediate Priority)
 
-**Goal:** Turn every work from a single row into a rich, linkable reference page for performers.
+**Goal:** Clean and enrich the catalog *before* launching dedicated work pages so every work page feels complete and trustworthy.
 
-- [ ] **Dedicated Work Route (`/works/[id]`)**
+- [ ] **Fold Movement Rows into `public.work_movements`**
+  - Prevent `sync-musicbrainz.mjs` from importing individual movements (`: I. Allegro`, `: No. 6`) as top-level works
+  - Migrate the ~4,000 existing movement rows out of `public.works` into `public.work_movements` attached to their parent work
+- [ ] **IMSLP `{{Work Info}}` Metadata Harvester**
+  - Extend `sync-imslp.mjs` to parse IMSLP wikitext fields (`Year/Date of Composition`, `Instrumentation`, `Key`, `Movements/Sections`, `Average Duration`) in bulk — lifting metadata completeness far faster than 60 works/day
+  - Finish IMSLP sync across all 314 composers
+- [ ] **Expand Catalog Number Parser (`scripts/lib/dedup.mjs`)**
+  - Add missing catalog systems (`G.` Boccherini, `MWV` Mendelssohn, `TH` Tchaikovsky, `CT` Chopin, `FS` Nielsen, `JB` Dvořák) and backfill `catalog_display`
+- [ ] **Modularize Admin Panel**
+  - Split `AdminPanel.tsx` into focused sub-components (`AdminAuthGate`, `ComposersManager`, `WorksManager`, `RelationsManager`, `SiteSettingsForm`)
+
+---
+
+## Phase 1 — Dedicated Work Pages & Movements
+
+**Goal:** Turn every work from a table row into a rich, SEO-friendly reference page for performers.
+
+- [ ] **SEO Work Slugs & Dedicated Route (`/works/[slug]`)**
+  - Add unique `slug` column to `public.works` (e.g. `bach-cello-suite-no-1-bwv-1007`) for readable, shareable URLs
   - Hero with catalog number, title, nickname, composer link, era, year, key, genre, and Essential badge
-  - Full instrumentation / scoring breakdown, estimated duration, and program notes
+  - Full instrumentation / scoring breakdown, estimated duration, structured movements list, and program notes
   - Direct **IMSLP Score ↗** callout + related works by the same composer or same instrumentation
   - SEO metadata & OpenGraph tags for sharing individual works
-- [ ] **Structured Movements Table (`public.work_movements`)**
-  - Columns: `work_id`, `movement_number`, `title`, `tempo_marking`, `key_signature`, `duration_seconds`
-  - Auto-populate from MusicBrainz sub-works & Wikidata `P527`, editable in Admin Panel
-  - Expose `movements` in `/api/v1/works/[id]`
-- [ ] **Complete IMSLP Backfill & Instrument Facets**
-  - Finish IMSLP sync across all 314 composers
-  - Add normalized **Instrument / Ensemble filter chips** on `/works` (Solo Cello, Cello & Piano, Violin, Piano Solo, String Quartet, Concerto, Orchestral, etc.)
+  - Expose `/api/v1/works/[slug]` with nested `movements`
 
 ---
 

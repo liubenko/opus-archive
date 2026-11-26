@@ -100,6 +100,14 @@ export function AdminPanel() {
   >([]);
   const [workSearch, setWorkSearch] = useState("");
   const [workComposerFilter, setWorkComposerFilter] = useState<string>("");
+  const [workTriageFilter, setWorkTriageFilter] = useState<
+    | "all"
+    | "essential"
+    | "missing_imslp"
+    | "missing_year"
+    | "missing_duration"
+    | "missing_description"
+  >("all");
   const [worksLoading, setWorksLoading] = useState(false);
   const [editingWork, setEditingWork] = useState<Partial<Work> | null>(null);
   const [savingWork, setSavingWork] = useState(false);
@@ -207,6 +215,17 @@ export function AdminPanel() {
     if (workComposerFilter) {
       query = query.eq("composer_id", Number(workComposerFilter));
     }
+    if (workTriageFilter === "essential") {
+      query = query.eq("is_popular", true);
+    } else if (workTriageFilter === "missing_imslp") {
+      query = query.is("imslp_url", null);
+    } else if (workTriageFilter === "missing_year") {
+      query = query.is("year_composed", null);
+    } else if (workTriageFilter === "missing_duration") {
+      query = query.is("duration_minutes", null);
+    } else if (workTriageFilter === "missing_description") {
+      query = query.is("description", null);
+    }
     if (workSearch.trim()) {
       const q = workSearch.trim();
       query = query.or(
@@ -219,7 +238,7 @@ export function AdminPanel() {
       (data ?? []) as (Work & { composers?: { name: string; slug: string } | null })[]
     );
     setWorksLoading(false);
-  }, [workComposerFilter, workSearch]);
+  }, [workComposerFilter, workSearch, workTriageFilter]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -380,12 +399,20 @@ export function AdminPanel() {
     if (!editingWork?.title || !editingWork?.composer_id) return;
     setSavingWork(true);
 
+    const catalogSystem = editingWork.catalog_system?.trim() || null;
+    const catalogNumber = editingWork.catalog_number?.trim() || null;
+    const catalogDisplay =
+      catalogSystem && catalogNumber
+        ? `${catalogSystem} ${catalogNumber}`
+        : catalogNumber || catalogSystem || null;
+
     const payload = {
       composer_id: Number(editingWork.composer_id),
       title: editingWork.title.trim(),
       nickname: editingWork.nickname?.trim() || null,
-      catalog_system: editingWork.catalog_system?.trim() || null,
-      catalog_number: editingWork.catalog_number?.trim() || null,
+      catalog_system: catalogSystem,
+      catalog_number: catalogNumber,
+      catalog_display: catalogDisplay,
       genre: editingWork.genre || "Chamber",
       key_signature: editingWork.key_signature?.trim() || null,
       year_composed: editingWork.year_composed
@@ -1264,6 +1291,32 @@ export function AdminPanel() {
               <Plus className="w-4 h-4" />
               Add Work
             </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(
+              [
+                ["all", "All Works"],
+                ["essential", "Essential Only"],
+                ["missing_imslp", "Missing IMSLP"],
+                ["missing_year", "Missing Year"],
+                ["missing_duration", "Missing Duration"],
+                ["missing_description", "Missing Notes"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setWorkTriageFilter(key)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors cursor-pointer ${
+                  workTriageFilter === key
+                    ? "bg-[#1a1816] dark:bg-[#d4af6a] text-white dark:text-[#11100e]"
+                    : "bg-white dark:bg-[#191714] border border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           {editingWork && (

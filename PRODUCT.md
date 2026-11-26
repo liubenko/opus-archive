@@ -27,20 +27,21 @@ Classical musicians, conservatory students, and chamber ensembles constantly jug
 
 ## 3. Business Model (Freemium)
 
-### Free Tier — *Open Public Archive*
+### Free Tier — *Open Public Archive & Starter Musician Workspace*
 - Full catalog access (composers, works, catalog systems, eras, nationalities, instrumentation)
-- Instant full-text & fuzzy search (`search_catalog` RPC)
-- Dedicated Composer & Work pages with movement breakdowns and program notes
+- Instant full-text & fuzzy search (`search_catalog` RPC) and server-paginated `/works` index
+- Dedicated Composer & SEO-friendly Work pages (`/works/[slug]`) with movement breakdowns and program notes
 - Verified **IMSLP Score** links & composer catalogs
 - Reference recording links (YouTube, Spotify, Apple Music Classical)
 - Interactive Composer Influence Graph & Lifespan Timeline (`/explore`)
 - Public read-only REST API (`/api/v1/*`) with edge caching
+- **Starter Musician Quota:** Track up to **20 repertoire pieces** and build **1 active recital program** free so students and performers can adopt Opus Archive immediately
 
-### Pro Tier — *Musician Workspace*
-- **Personal Repertoire & Practice Tracker** — track works by status (*Learning*, *Performed*, *Ready*, *Wish List*), difficulty rating, last practiced date, and private performance notes
-- **Recital & Concert Program Builder** — drag-and-drop works into halves with intermissions, auto-calculated total duration, program note generator, and branded PDF export
+### Pro Tier — *Unlimited Musician Workspace*
+- **Unlimited Personal Repertoire & Practice Tracker** — track unlimited works by status (*Learning*, *Performed*, *Ready*, *Wish List*), difficulty rating, last practiced date, and private performance notes
+- **Unlimited Recital & Concert Program Builder** — drag-and-drop works into halves with intermissions, auto-calculated total duration, automated program notes, and branded PDF export
 - **Private Annotations & Score Bookmarks** — personal fingerings/bowings notes, preferred IMSLP edition links, and custom tags
-- **Sync & Export** — CSV/JSON export and personal API tokens for companion apps
+- **Sync & Export** — CSV/Excel/JSON export and personal API tokens for companion apps
 
 ---
 

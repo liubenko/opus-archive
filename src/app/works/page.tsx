@@ -4,15 +4,21 @@ import { WorksDirectory } from "@/components/WorksDirectory";
 
 export const dynamic = "force-dynamic";
 
+const PAGE_SIZE = 50;
+
 export default async function WorksIndexPage() {
-  const { data } = await supabase
+  const { data, count } = await supabase
     .from("works")
-    .select("*, composers(id, name, slug, era, nationality, avatar_url)")
+    .select("*, composers(id, name, slug, era, nationality, avatar_url)", {
+      count: "exact",
+    })
     .order("is_popular", { ascending: false })
     .order("year_composed", { ascending: true })
-    .limit(1000);
+    .order("id", { ascending: true })
+    .range(0, PAGE_SIZE - 1);
 
-  const works = (data ?? []) as WorkWithComposer[];
+  const initialWorks = (data ?? []) as WorkWithComposer[];
+  const initialTotal = count ?? initialWorks.length;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8">
@@ -24,13 +30,21 @@ export default async function WorksIndexPage() {
           Classical Works &amp; Opus Index
         </h1>
         <p className="text-sm text-stone-600 dark:text-stone-400 max-w-2xl">
-          Search and filter across cataloged compositions by opus or thematic
-          number (Op., BWV, K., Hob., RV, D., S., WWV, L.), genre, era, key
-          signature, or instrumentation.
+          Search and filter across all{" "}
+          <strong className="text-stone-900 dark:text-stone-200">
+            {initialTotal.toLocaleString()}
+          </strong>{" "}
+          cataloged compositions by opus or thematic number (Op., BWV, K., Hob.,
+          RV, D., S., WWV, L.), genre, era, instrument, or IMSLP score
+          availability.
         </p>
       </div>
 
-      <WorksDirectory works={works} />
+      <WorksDirectory
+        initialWorks={initialWorks}
+        initialTotal={initialTotal}
+        pageSize={PAGE_SIZE}
+      />
     </div>
   );
 }
