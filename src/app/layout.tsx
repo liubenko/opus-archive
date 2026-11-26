@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Inter, Playfair_Display, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
@@ -57,7 +58,7 @@ export default function RootLayout({
       <body className="min-h-screen flex flex-col bg-[#faf8f4] dark:bg-[#11100e] text-[#1a1816] dark:text-[#f3efe6] transition-colors">
         <Navbar />
         <main className="flex-1">{children}</main>
-        <footer className="border-t border-stone-200/80 dark:border-stone-800/80 bg-white/70 dark:bg-[#161412]/80 mt-16">
+        <footer className="border-t border-stone-200/80 dark:border-stone-800/80 bg-white/70 dark:bg-[#161412]/80 mt-16 print:hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-stone-500 dark:text-stone-400">
             <div className="flex items-center gap-2">
               <span className="font-serif text-sm font-semibold text-stone-800 dark:text-stone-200">
@@ -66,8 +67,22 @@ export default function RootLayout({
               <span>·</span>
               <span>Classical Music Reference &amp; Influence Atlas</span>
             </div>
-            <div>
-              Powered by Next.js, Cloudflare Workers &amp; Supabase PostgreSQL
+            <div className="flex items-center gap-4">
+              <Link
+                href="/docs/api"
+                className="hover:text-stone-900 dark:hover:text-stone-100 font-medium transition-colors"
+              >
+                REST API Docs
+              </Link>
+              <span>·</span>
+              <Link
+                href="/studio"
+                className="hover:text-stone-900 dark:hover:text-stone-100 font-medium transition-colors"
+              >
+                My Studio
+              </Link>
+              <span>·</span>
+              <span>Next.js · Cloudflare Workers · Supabase</span>
             </div>
           </div>
         </footer>

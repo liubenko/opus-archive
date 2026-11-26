@@ -1,6 +1,6 @@
 # Opus Archive — Product Roadmap (`ROADMAP.md`)
 
-> Living roadmap aligned with [PRODUCT.md](./PRODUCT.md). Organized into concrete, shippable phases starting with **Dedicated Work Pages**.
+> Living roadmap aligned with [PRODUCT.md](./PRODUCT.md).
 
 ---
 
@@ -14,94 +14,58 @@
 - [x] Public REST API v1 (`/api/v1/*`) with CORS and edge caching
 - [x] Secure Admin Panel (`/admin`) with Supabase Auth, `app_metadata.role = 'admin'` RLS, full CRUD, and live `site_settings`
 - [x] IMSLP MediaWiki API integration (`imslp_url` on composers & works, UI buttons, API fields, Admin editor, daily sync)
-- [x] Server-backed `/works` search, instrument chips, IMSLP filter, and pagination across all 23,539+ works
+- [x] Server-backed `/works` search, instrument chips, IMSLP filter, and pagination across all 20,599+ works
 
 ---
 
-## Phase 0.5 — Data Hygiene & IMSLP Metadata Harvest (Immediate Priority)
+## Phase 0.5 — Data Hygiene & IMSLP Metadata Harvest ✅
 
-**Goal:** Clean and enrich the catalog *before* launching dedicated work pages so every work page feels complete and trustworthy.
-
-- [ ] **Fold Movement Rows into `public.work_movements`**
-  - Prevent `sync-musicbrainz.mjs` from importing individual movements (`: I. Allegro`, `: No. 6`) as top-level works
-  - Migrate the ~4,000 existing movement rows out of `public.works` into `public.work_movements` attached to their parent work
-- [ ] **IMSLP `{{Work Info}}` Metadata Harvester**
-  - Extend `sync-imslp.mjs` to parse IMSLP wikitext fields (`Year/Date of Composition`, `Instrumentation`, `Key`, `Movements/Sections`, `Average Duration`) in bulk — lifting metadata completeness far faster than 60 works/day
-  - Finish IMSLP sync across all 314 composers
-- [ ] **Expand Catalog Number Parser (`scripts/lib/dedup.mjs`)**
-  - Add missing catalog systems (`G.` Boccherini, `MWV` Mendelssohn, `TH` Tchaikovsky, `CT` Chopin, `FS` Nielsen, `JB` Dvořák) and backfill `catalog_display`
-- [ ] **Modularize Admin Panel**
-  - Split `AdminPanel.tsx` into focused sub-components (`AdminAuthGate`, `ComposersManager`, `WorksManager`, `RelationsManager`, `SiteSettingsForm`)
+- [x] Created `public.work_movements` with RLS and folded 2,832 movement rows cleanly under parent works (`scripts/hygiene-catalog.mjs`)
+- [x] Prevented `sync-musicbrainz.mjs` from importing individual movements as standalone works
+- [x] Added IMSLP `{{Work Info}}` wikitext harvester in `sync-imslp.mjs` (batch-fetching 20 pages per API request for year, key, instrumentation, duration, and movement count)
+- [x] Expanded `CATALOG_REGEX` (`G.`, `MWV`, `TH`, `CT`, `FS`, `JB`, `WAB`, `TrV`, `FP`, `JW`, `MS`, `EG`)
+- [ ] Optional polish: split `AdminPanel.tsx` into modular sub-components
 
 ---
 
-## Phase 1 — Dedicated Work Pages & Movements
+## Phase 1 — Dedicated Work Pages & Movements ✅
 
-**Goal:** Turn every work from a table row into a rich, SEO-friendly reference page for performers.
-
-- [ ] **SEO Work Slugs & Dedicated Route (`/works/[slug]`)**
-  - Add unique `slug` column to `public.works` (e.g. `bach-cello-suite-no-1-bwv-1007`) for readable, shareable URLs
-  - Hero with catalog number, title, nickname, composer link, era, year, key, genre, and Essential badge
-  - Full instrumentation / scoring breakdown, estimated duration, structured movements list, and program notes
-  - Direct **IMSLP Score ↗** callout + related works by the same composer or same instrumentation
-  - SEO metadata & OpenGraph tags for sharing individual works
-  - Expose `/api/v1/works/[slug]` with nested `movements`
+- [x] Added unique SEO `slug` column + automatic Postgres trigger (`works_set_slug`) across all 20,599 works
+- [x] Built `/works/[slug]` with dynamic SEO metadata, composer mini-card, IMSLP CTA, at-a-glance metadata grid, instrumentation, program notes, numbered `work_movements`, and related repertoire
+- [x] Exposed `/api/v1/works/[slug]` with nested `movements` and `related_works`
+- [x] Linked work titles across composer pages, `/works`, and live search to `/works/[slug]`
 
 ---
 
-## Phase 2 — Reference Recordings & In-App Score Viewing
+## Phase 2 — Reference Recordings & IMSLP Score Editions ✅
 
-**Goal:** Let musicians *hear* and *read* the score without leaving Opus Archive.
-
-- [ ] **Streaming & Reference Recording Links**
-  - Curated or auto-linked YouTube, Spotify, and Apple Music Classical links on `/works/[id]`
-  - Optional embedded YouTube player for quick listening during repertoire research
-  - Admin Panel support for pinning a "Reference Recording" per work
-- [ ] **In-App IMSLP Score Preview / Sheet Music Viewer**
-  - Parse available public-domain PDF editions via IMSLP's API for a work page
-  - Show edition metadata (publisher, editor, year, page count) and quick-open / inline PDF viewer where permitted by IMSLP terms
+- [x] Added `youtube_url`, `spotify_url`, `apple_music_url`, and `recording_notes` to `public.works`, API, and Admin Panel
+- [x] Built `WorkListeningPanel` with lazy-loaded YouTube embed for curated recordings + one-click YouTube/Spotify/Apple Music links for all works
+- [x] Built `/api/v1/imslp/editions` (brace-balanced wikitext parser, 24h edge-cached) and `WorkImslpEditions` panel on `/works/[slug]`
 
 ---
 
-## Phase 3 — Expanded Discovery, Graph & Analytics
+## Phase 3 — Expanded Discovery, Graph & Analytics ✅
 
-**Goal:** Make `/explore` a deeper musical-history and repertoire discovery tool.
-
-- [ ] **Enhanced Influence Graph (`/explore`)**
-  - Filter graph by Era, Nationality, and Relationship Type (Teacher/Student, Influenced, Contemporaries)
-  - Search & focus/zoom onto a specific composer's lineage cluster
-  - Expand `composer_relations` dataset via Wikidata (`P1066` student of / `P737` influenced by)
-- [ ] **Repertoire Discovery Filters**
-  - "Find a piece by duration" slider (e.g., 8–15 min recital opener, 25–35 min major sonata/concerto)
-  - Filter by Key Signature, Composition Decade, and Has IMSLP Score
+- [x] Upgraded `InfluenceGraph` on `/explore` with Composer Lineage Focus search, Era filter, and Nationality filter
+- [x] Expanded `composer_relations` from 56 → 160 verified historical lineages via Wikidata SPARQL (`scripts/sync-relations.mjs`)
+- [x] Added Duration presets, Key Signature selector, and Composition Period filters to `/works`
 
 ---
 
-## Phase 4 — Musician Accounts & Pro Workspace (Freemium Launch)
+## Phase 4 — Musician Accounts & My Studio Workspace ✅
 
-**Goal:** Launch personal musician tools backed by Supabase Auth + `auth.uid()` RLS.
-
-- [ ] **User Accounts & Profiles**
-  - Musician sign-up (Email / Magic Link / Google OAuth), primary instrument profile
-  - Strict row-level isolation (`user_id = auth.uid()`)
-- [ ] **Personal Repertoire & Practice Tracker (Pro)**
-  - Add any catalog work to personal library with status (`Wish List`, `Learning`, `Ready`, `Performed`)
-  - Difficulty rating (1–5), target tempo, last practiced date, and private performance/fingering notes
-  - Import/export compatibility with spreadsheets (CSV / Excel)
-- [ ] **Recital & Concert Program Builder (Pro)**
-  - Create named programs (e.g., *Spring Recital 2027*), drag-and-drop works into Half I / Intermission / Half II
-  - Live auto-summed timing (per half + total duration)
-  - One-click **Program PDF Export** with composer dates, opus numbers, movements, and program notes
+- [x] Created `public.user_repertoire`, `public.recital_programs`, and `public.recital_program_items` with strict `user_id = (select auth.uid())` RLS
+- [x] Built `/studio` (**My Studio**) with Sign In / Sign Up / Email Login Link and Free Starter quota (20 works & 1 program) vs Unlimited Pro/Admin
+- [x] Built Repertoire & Practice Tracker (statuses, 1–5 difficulty, Practiced Today, private notes, CSV export)
+- [x] Built Recital Program Builder (Half I / Intermission / Half II, reordering, live auto-summed timing, Print / Export PDF)
+- [x] Added one-click **Track Repertoire** & **Add to Program** actions on every `/works/[slug]` page
 
 ---
 
-## Phase 5 — Platform, Custom Domain & API v2
+## Phase 5 — Platform, Interactive API Docs & SEO ✅ *(Custom Domain & Stripe Ready)*
 
-**Goal:** Polish for scale, custom branding, and companion-app ecosystem.
-
-- [ ] **Custom Domain & Brand Polish** (e.g. `opusarchive.org` / `.com`, custom OG social cards, sitemap.xml)
-- [ ] **Billing & Subscription Management** (Stripe Checkout + Customer Portal for Pro tier)
-- [ ] **Public API v2 & Companion App Tokens**
-  - Dedicated `/api/v1/works/[id]` endpoint with movements & recordings
-  - Authenticated personal endpoints (`/api/v1/me/repertoire`, `/api/v1/me/programs`) via user API keys for mobile apps, Notion, or Obsidian plugins
-  - OpenAPI / Swagger interactive docs page (`/docs/api`)
+- [x] Built interactive API Docs & live playground at `/docs/api`
+- [x] Built authenticated personal companion-app endpoints (`/api/v1/me/repertoire`, `/api/v1/me/programs`) scoped via Supabase Bearer JWT + RLS
+- [x] Added dynamic `/sitemap.xml` and `/robots.txt` (with `NEXT_PUBLIC_SITE_URL` support for custom domain migration)
+- [ ] Attach custom domain (when chosen) & configure Stripe Checkout for Pro subscriptions
