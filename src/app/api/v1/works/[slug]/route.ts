@@ -18,7 +18,7 @@ export async function GET(_request: Request, context: RouteContext) {
   let workQuery = supabase
     .from("works")
     .select(
-      "id, slug, composer_id, title, nickname, catalog_system, catalog_number, catalog_display, genre, key_signature, year_composed, instrumentation, movements_count, duration_minutes, is_popular, description, imslp_url, composers(id, slug, name, full_name, era, nationality, birth_year, death_year, avatar_url, imslp_url)"
+      "id, slug, composer_id, title, nickname, catalog_system, catalog_number, catalog_display, genre, key_signature, year_composed, instrumentation, movements_count, duration_minutes, is_popular, description, imslp_url, youtube_url, spotify_url, apple_music_url, recording_notes, composers(id, slug, name, full_name, era, nationality, birth_year, death_year, avatar_url, imslp_url)"
     );
 
   workQuery = isNumericId

@@ -427,6 +427,10 @@ export function AdminPanel() {
         : null,
       is_popular: Boolean(editingWork.is_popular),
       imslp_url: editingWork.imslp_url?.trim() || null,
+      youtube_url: editingWork.youtube_url?.trim() || null,
+      spotify_url: editingWork.spotify_url?.trim() || null,
+      apple_music_url: editingWork.apple_music_url?.trim() || null,
+      recording_notes: editingWork.recording_notes?.trim() || null,
       description: editingWork.description?.trim() || null,
     };
 
@@ -1515,6 +1519,64 @@ export function AdminPanel() {
                       })
                     }
                     placeholder="https://imslp.org/wiki/..."
+                    className="w-full px-3 py-2 rounded-lg bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-stone-500">YouTube Reference URL</span>
+                  <input
+                    value={editingWork.youtube_url || ""}
+                    onChange={(e) =>
+                      setEditingWork({
+                        ...editingWork,
+                        youtube_url: e.target.value,
+                      })
+                    }
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    className="w-full px-3 py-2 rounded-lg bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-stone-500">Spotify Reference URL</span>
+                  <input
+                    value={editingWork.spotify_url || ""}
+                    onChange={(e) =>
+                      setEditingWork({
+                        ...editingWork,
+                        spotify_url: e.target.value,
+                      })
+                    }
+                    placeholder="https://open.spotify.com/..."
+                    className="w-full px-3 py-2 rounded-lg bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-stone-500">Apple Music URL</span>
+                  <input
+                    value={editingWork.apple_music_url || ""}
+                    onChange={(e) =>
+                      setEditingWork({
+                        ...editingWork,
+                        apple_music_url: e.target.value,
+                      })
+                    }
+                    placeholder="https://music.apple.com/..."
+                    className="w-full px-3 py-2 rounded-lg bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100"
+                  />
+                </label>
+                <label className="space-y-1 sm:col-span-2 lg:col-span-3">
+                  <span className="text-stone-500">
+                    Reference Recording Notes (Performer / Orchestra / Year)
+                  </span>
+                  <input
+                    value={editingWork.recording_notes || ""}
+                    onChange={(e) =>
+                      setEditingWork({
+                        ...editingWork,
+                        recording_notes: e.target.value,
+                      })
+                    }
+                    placeholder="e.g. Mstislav Rostropovich, 1995 (EMI)"
                     className="w-full px-3 py-2 rounded-lg bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100"
                   />
                 </label>

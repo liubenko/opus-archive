@@ -19,6 +19,8 @@ import { supabase } from "@/lib/supabase";
 import type { Composer, Work, WorkMovement } from "@/types/database";
 import { formatLifespan, getEraStyle } from "@/lib/constants";
 import { ComposerAvatar } from "@/components/ComposerAvatar";
+import { WorkListeningPanel } from "@/components/WorkListeningPanel";
+import { WorkImslpEditions } from "@/components/WorkImslpEditions";
 
 export const dynamic = "force-dynamic";
 
@@ -378,6 +380,20 @@ export default async function WorkDetailPage({ params }: WorkPageProps) {
           </p>
         </section>
       )}
+
+      {/* Listen & Reference Recordings */}
+      <WorkListeningPanel
+        title={work.title}
+        composerName={composer?.name}
+        catalogDisplay={work.catalog_display}
+        youtubeUrl={work.youtube_url}
+        spotifyUrl={work.spotify_url}
+        appleMusicUrl={work.apple_music_url}
+        recordingNotes={work.recording_notes}
+      />
+
+      {/* IMSLP Sheet Music Editions */}
+      {work.imslp_url && <WorkImslpEditions imslpUrl={work.imslp_url} />}
 
       {/* Structured Movements */}
       {movements.length > 0 && (

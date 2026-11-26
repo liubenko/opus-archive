@@ -199,6 +199,7 @@ export type Database = {
       };
       works: {
         Row: {
+          apple_music_url: string | null;
           catalog_display: string | null;
           catalog_number: string | null;
           catalog_system: string | null;
@@ -215,12 +216,16 @@ export type Database = {
           key_signature: string | null;
           movements_count: number | null;
           nickname: string | null;
+          recording_notes: string | null;
           search_vector: unknown;
           slug: string | null;
+          spotify_url: string | null;
           title: string;
           year_composed: number | null;
+          youtube_url: string | null;
         };
         Insert: {
+          apple_music_url?: string | null;
           catalog_display?: string | null;
           catalog_number?: string | null;
           catalog_system?: string | null;
@@ -237,12 +242,16 @@ export type Database = {
           key_signature?: string | null;
           movements_count?: number | null;
           nickname?: string | null;
+          recording_notes?: string | null;
           search_vector?: unknown;
           slug?: string | null;
+          spotify_url?: string | null;
           title: string;
           year_composed?: number | null;
+          youtube_url?: string | null;
         };
         Update: {
+          apple_music_url?: string | null;
           catalog_display?: string | null;
           catalog_number?: string | null;
           catalog_system?: string | null;
@@ -259,10 +268,13 @@ export type Database = {
           key_signature?: string | null;
           movements_count?: number | null;
           nickname?: string | null;
+          recording_notes?: string | null;
           search_vector?: unknown;
           slug?: string | null;
+          spotify_url?: string | null;
           title?: string;
           year_composed?: number | null;
+          youtube_url?: string | null;
         };
         Relationships: [
           {
