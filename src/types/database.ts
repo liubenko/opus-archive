@@ -67,6 +67,8 @@ export type Database = {
           era: string;
           full_name: string;
           id: number;
+          imslp_synced_at: string | null;
+          imslp_url: string | null;
           name: string;
           nationality: string;
           notable_for: string | null;
@@ -86,6 +88,8 @@ export type Database = {
           era: string;
           full_name: string;
           id?: never;
+          imslp_synced_at?: string | null;
+          imslp_url?: string | null;
           name: string;
           nationality: string;
           notable_for?: string | null;
@@ -105,6 +109,8 @@ export type Database = {
           era?: string;
           full_name?: string;
           id?: never;
+          imslp_synced_at?: string | null;
+          imslp_url?: string | null;
           name?: string;
           nationality?: string;
           notable_for?: string | null;
@@ -161,6 +167,8 @@ export type Database = {
           duration_minutes: number | null;
           genre: string;
           id: number;
+          imslp_synced_at: string | null;
+          imslp_url: string | null;
           instrumentation: string | null;
           is_popular: boolean;
           key_signature: string | null;
@@ -180,6 +188,8 @@ export type Database = {
           duration_minutes?: number | null;
           genre: string;
           id?: never;
+          imslp_synced_at?: string | null;
+          imslp_url?: string | null;
           instrumentation?: string | null;
           is_popular?: boolean;
           key_signature?: string | null;
@@ -199,6 +209,8 @@ export type Database = {
           duration_minutes?: number | null;
           genre?: string;
           id?: never;
+          imslp_synced_at?: string | null;
+          imslp_url?: string | null;
           instrumentation?: string | null;
           is_popular?: boolean;
           key_signature?: string | null;

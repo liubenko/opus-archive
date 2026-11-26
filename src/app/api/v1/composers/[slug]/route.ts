@@ -25,7 +25,7 @@ export async function GET(request: Request, context: RouteContext) {
   const { data: composer, error: compErr } = await supabase
     .from("composers")
     .select(
-      "id, slug, name, full_name, sort_name, era, nationality, birth_year, death_year, birth_place, avatar_url, short_bio, notable_for, rank_order"
+      "id, slug, name, full_name, sort_name, era, nationality, birth_year, death_year, birth_place, avatar_url, short_bio, notable_for, rank_order, imslp_url"
     )
     .eq("slug", slug)
     .single();
@@ -37,7 +37,7 @@ export async function GET(request: Request, context: RouteContext) {
   let worksQuery = supabase
     .from("works")
     .select(
-      "id, title, nickname, catalog_system, catalog_number, catalog_display, genre, key_signature, year_composed, instrumentation, movements_count, duration_minutes, is_popular, description",
+      "id, title, nickname, catalog_system, catalog_number, catalog_display, genre, key_signature, year_composed, instrumentation, movements_count, duration_minutes, is_popular, description, imslp_url",
       { count: "exact" }
     )
     .eq("composer_id", composer.id);

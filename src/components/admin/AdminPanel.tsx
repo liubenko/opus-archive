@@ -328,6 +328,7 @@ export function AdminPanel() {
         : null,
       birth_place: editingComposer.birth_place?.trim() || null,
       avatar_url: editingComposer.avatar_url?.trim() || null,
+      imslp_url: editingComposer.imslp_url?.trim() || null,
       short_bio: (editingComposer.short_bio || "").trim(),
       notable_for: editingComposer.notable_for?.trim() || null,
       rank_order: editingComposer.rank_order
@@ -398,6 +399,7 @@ export function AdminPanel() {
         ? Number(editingWork.duration_minutes)
         : null,
       is_popular: Boolean(editingWork.is_popular),
+      imslp_url: editingWork.imslp_url?.trim() || null,
       description: editingWork.description?.trim() || null,
     };
 
@@ -1086,6 +1088,20 @@ export function AdminPanel() {
                   />
                 </label>
                 <label className="space-y-1 sm:col-span-2 lg:col-span-3">
+                  <span className="text-stone-500">IMSLP Category URL</span>
+                  <input
+                    value={editingComposer.imslp_url || ""}
+                    onChange={(e) =>
+                      setEditingComposer({
+                        ...editingComposer,
+                        imslp_url: e.target.value,
+                      })
+                    }
+                    placeholder="https://imslp.org/wiki/Category:Bach,_Johann_Sebastian"
+                    className="w-full px-3 py-2 rounded-lg bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100"
+                  />
+                </label>
+                <label className="space-y-1 sm:col-span-2 lg:col-span-3">
                   <span className="text-stone-500">Short Bio *</span>
                   <textarea
                     required
@@ -1435,6 +1451,20 @@ export function AdminPanel() {
                     />
                   </label>
                 </div>
+                <label className="space-y-1 sm:col-span-2 lg:col-span-3">
+                  <span className="text-stone-500">IMSLP Score URL</span>
+                  <input
+                    value={editingWork.imslp_url || ""}
+                    onChange={(e) =>
+                      setEditingWork({
+                        ...editingWork,
+                        imslp_url: e.target.value,
+                      })
+                    }
+                    placeholder="https://imslp.org/wiki/..."
+                    className="w-full px-3 py-2 rounded-lg bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-900 dark:text-stone-100"
+                  />
+                </label>
                 <label className="space-y-1 sm:col-span-2 lg:col-span-3">
                   <span className="text-stone-500">Description / Program Notes</span>
                   <textarea

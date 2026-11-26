@@ -14,6 +14,7 @@ on:
         options:
           - all
           - enrich
+          - imslp
           - musicbrainz
           - openopus
       batch_size:
@@ -66,3 +67,11 @@ jobs:
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           ENRICH_BATCH_SIZE: ${{ github.event.inputs.batch_size || '60' }}
         run: node scripts/enrich-works.mjs
+
+      - name: Link IMSLP sheet music scores (IMSLP MediaWiki API)
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.source == 'all' || github.event.inputs.source == 'imslp' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          IMSLP_BATCH_SIZE: ${{ github.event.inputs.batch_size || '30' }}
+        run: node scripts/sync-imslp.mjs

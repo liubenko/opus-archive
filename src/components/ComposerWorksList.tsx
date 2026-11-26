@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Clock, Layers, Search, Sparkles, Music } from "lucide-react";
+import { Clock, Layers, Search, Sparkles, Music, FileMusic, ExternalLink } from "lucide-react";
 import type { Work } from "@/types/database";
 
 interface ComposerWorksListProps {
@@ -186,6 +186,18 @@ export function ComposerWorksList({ works }: ComposerWorksListProps) {
                     <Clock className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500" />
                     ~{work.duration_minutes} min
                   </span>
+                )}
+                {work.imslp_url && (
+                  <a
+                    href={work.imslp_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50/90 dark:bg-amber-950/50 border border-amber-200/80 dark:border-amber-800/70 text-[#8a6526] dark:text-[#e3c27d] hover:bg-amber-100 dark:hover:bg-amber-900/50 font-medium transition-colors"
+                  >
+                    <FileMusic className="w-3 h-3" />
+                    IMSLP Score
+                    <ExternalLink className="w-2.5 h-2.5 opacity-75" />
+                  </a>
                 )}
               </div>
             </div>

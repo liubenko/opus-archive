@@ -44,7 +44,7 @@ export async function GET(request: Request) {
   let query = supabase
     .from("works")
     .select(
-      "id, composer_id, title, nickname, catalog_system, catalog_number, catalog_display, genre, key_signature, year_composed, instrumentation, movements_count, duration_minutes, is_popular, description, composers(id, slug, name, era, nationality)",
+      "id, composer_id, title, nickname, catalog_system, catalog_number, catalog_display, genre, key_signature, year_composed, instrumentation, movements_count, duration_minutes, is_popular, description, imslp_url, composers(id, slug, name, era, nationality)",
       { count: "exact" }
     );
 

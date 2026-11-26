@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, Sparkles, Clock, X } from "lucide-react";
+import { Search, Sparkles, Clock, X, FileMusic, ExternalLink } from "lucide-react";
 import type { WorkWithComposer } from "@/types/database";
 import { ERA_ORDER, getEraStyle } from "@/lib/constants";
 
@@ -240,6 +240,18 @@ export function WorksDirectory({ works }: WorksDirectoryProps) {
                           <span className="text-[11px] text-stone-400 dark:text-stone-500 block mt-0.5">
                             {work.instrumentation}
                           </span>
+                        )}
+                        {work.imslp_url && (
+                          <a
+                            href={work.imslp_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 mt-1 text-[11px] font-medium text-[#9a7432] dark:text-[#d4af6a] hover:underline"
+                          >
+                            <FileMusic className="w-3 h-3" />
+                            IMSLP Score
+                            <ExternalLink className="w-2.5 h-2.5 opacity-75" />
+                          </a>
                         )}
                       </td>
                       <td className="py-3.5 px-4 align-top whitespace-nowrap">

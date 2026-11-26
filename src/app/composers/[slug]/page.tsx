@@ -7,6 +7,8 @@ import {
   Network,
   Globe,
   Music,
+  FileMusic,
+  ExternalLink,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Composer, ComposerRelation, Work } from "@/types/database";
@@ -159,6 +161,18 @@ export default async function ComposerDetailPage({
                 <Music className="w-3.5 h-3.5 text-[#9a7432] dark:text-[#d4af6a]" />
                 {works.length} cataloged works
               </span>
+              {composer.imslp_url && (
+                <a
+                  href={composer.imslp_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50/90 dark:bg-amber-950/50 border border-amber-200/80 dark:border-amber-800/70 text-[#8a6526] dark:text-[#e3c27d] hover:bg-amber-100 dark:hover:bg-amber-900/50 font-medium transition-colors"
+                >
+                  <FileMusic className="w-3.5 h-3.5" />
+                  IMSLP Scores
+                  <ExternalLink className="w-3 h-3 opacity-75" />
+                </a>
+              )}
             </div>
 
             {composer.notable_for && (
