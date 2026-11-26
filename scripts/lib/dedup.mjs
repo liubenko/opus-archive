@@ -41,7 +41,7 @@ export const CATALOG_REGEX =
  * imported as top-level standalone works.
  */
 export function isMovementSubworkTitle(title) {
-  return /:\s*([IVXLCDM]+\.|No\.\s*\d+\.|[1-9]\d?\.\s+[A-Za-z])/.test(
+  return /:\s*([IVXLCDM]+\.|No\.\s*\d+\.|[1-9]\d?\.\s+[A-Za-z]|(?:Act|Atto|Acte|Akt|Scene|Scène|Tableau|Part|Teil)\s+[IVXLCDM\d]+)/i.test(
     String(title || "")
   );
 }

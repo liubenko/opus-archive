@@ -675,7 +675,7 @@ function extractPageTitleFromImslpUrl(url) {
 async function harvestImslpWorkInfoMetadata() {
   const HARVEST_LIMIT = Math.max(
     20,
-    Number(process.env.IMSLP_HARVEST_LIMIT || 200)
+    Number(process.env.IMSLP_HARVEST_LIMIT || 1500)
   );
   console.log(
     `\nHarvesting IMSLP {{Work Info}} metadata (up to ${HARVEST_LIMIT} linked works)...`
@@ -701,9 +701,9 @@ async function harvestImslpWorkInfoMetadata() {
 
   let enrichedCount = 0;
 
-  // Query 20 IMSLP pages in a single MediaWiki API call
-  for (let i = 0; i < works.length; i += 20) {
-    const batch = works.slice(i, i + 20);
+  // Query 50 IMSLP pages in a single MediaWiki API call (max standard limit)
+  for (let i = 0; i < works.length; i += 50) {
+    const batch = works.slice(i, i + 50);
     const titleToWorks = new Map();
     const titles = [];
 
@@ -723,7 +723,6 @@ async function harvestImslpWorkInfoMetadata() {
       action: "query",
       prop: "revisions",
       rvprop: "content",
-      rvslots: "main",
       titles: titles.join("|"),
     });
 

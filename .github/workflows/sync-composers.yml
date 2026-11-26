@@ -13,11 +13,13 @@ on:
         default: "all"
         options:
           - all
+          - composers
           - enrich
           - hygiene
           - imslp
           - musicbrainz
           - openopus
+          - phase6
           - relations
       batch_size:
         description: "Items per run (composers for sync / works for enrich)"
@@ -70,8 +72,15 @@ jobs:
           ENRICH_BATCH_SIZE: ${{ github.event.inputs.batch_size || '60' }}
         run: node scripts/enrich-works.mjs
 
-      - name: Run catalog hygiene (fold movements & backfill catalog numbers)
-        if: ${{ github.event.inputs.source == 'hygiene' }}
+      - name: Enrich composer portraits, birthplaces & editorial bios
+        if: ${{ github.event.inputs.source == 'composers' || github.event.inputs.source == 'phase6' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: node scripts/enrich-composers.mjs
+
+      - name: Run catalog hygiene (fold movements/opera scenes & clean titles)
+        if: ${{ github.event.inputs.source == 'hygiene' || github.event.inputs.source == 'phase6' }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
@@ -85,10 +94,10 @@ jobs:
         run: node scripts/sync-relations.mjs
 
       - name: Link IMSLP sheet music scores & harvest Work Info metadata
-        if: ${{ github.event_name == 'schedule' || github.event.inputs.source == 'all' || github.event.inputs.source == 'imslp' }}
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.source == 'all' || github.event.inputs.source == 'imslp' || github.event.inputs.source == 'phase6' }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-          IMSLP_BATCH_SIZE: ${{ github.event.inputs.batch_size || '40' }}
-          IMSLP_HARVEST_LIMIT: "300"
+          IMSLP_BATCH_SIZE: ${{ github.event.inputs.batch_size || '180' }}
+          IMSLP_HARVEST_LIMIT: "2500"
         run: node scripts/sync-imslp.mjs

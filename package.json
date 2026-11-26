@@ -11,6 +11,7 @@
     "sync:musicbrainz": "node scripts/sync-musicbrainz.mjs",
     "sync:imslp": "node scripts/sync-imslp.mjs",
     "sync:relations": "node scripts/sync-relations.mjs",
+    "enrich:composers": "node scripts/enrich-composers.mjs",
     "hygiene:catalog": "node scripts/hygiene-catalog.mjs",
     "enrich:works": "node scripts/enrich-works.mjs",
     "dev:vinext": "vite dev --port 3001",

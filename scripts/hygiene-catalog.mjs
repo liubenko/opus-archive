@@ -78,6 +78,17 @@ function parseMovementPart(part) {
       return { movement_number: num, title: numMatch[2].trim() };
     }
   }
+  const actMatch = trimmed.match(
+    /^(?:Act|Atto|Acte|Akt|Scene|Scène|Tableau|Part|Teil)\s+([IVXLCDM]+|\d+)[:.]?\s*(.*)$/i
+  );
+  if (actMatch) {
+    const rawNum = actMatch[1].toUpperCase();
+    const base = ROMAN_MAP[rawNum] || Number(rawNum) || 1;
+    return {
+      movement_number: base,
+      title: trimmed.slice(0, 240),
+    };
+  }
   return null;
 }
 
@@ -150,13 +161,19 @@ async function main() {
     `Found ${movementsToUpsert.length} movement rows matching existing parent works.`
   );
 
-  // Deduplicate (work_id, movement_number) before upsert
-  const uniqueMovements = new Map();
+  // Deduplicate (work_id, movement_number) before upsert — assign sequential numbers if an opera Act has multiple scenes
+  const usedNumbersByWork = new Map();
+  const mvtList = [];
   for (const m of movementsToUpsert) {
-    const k = `${m.work_id}::${m.movement_number}`;
-    if (!uniqueMovements.has(k)) uniqueMovements.set(k, m);
+    if (!usedNumbersByWork.has(m.work_id)) {
+      usedNumbersByWork.set(m.work_id, new Set());
+    }
+    const used = usedNumbersByWork.get(m.work_id);
+    let num = m.movement_number;
+    while (used.has(num)) num++;
+    used.add(num);
+    mvtList.push({ ...m, movement_number: num });
   }
-  const mvtList = Array.from(uniqueMovements.values());
 
   // 1. Upsert into work_movements in batches of 200
   for (let i = 0; i < mvtList.length; i += 200) {
@@ -239,6 +256,27 @@ async function main() {
           .eq("id", p.id)
       )
     );
+  }
+
+  // 5. Normalize double-whitespace in work titles
+  const whitespacePatches = allWorks.filter(
+    (w) => !deletedSet.has(w.id) && /\s{2,}|^\s|\s$/.test(w.title || "")
+  );
+  if (whitespacePatches.length > 0) {
+    console.log(
+      `Cleaning whitespace in ${whitespacePatches.length} work titles...`
+    );
+    for (let i = 0; i < whitespacePatches.length; i += 25) {
+      const chunk = whitespacePatches.slice(i, i + 25);
+      await Promise.all(
+        chunk.map((w) =>
+          supabase
+            .from("works")
+            .update({ title: w.title.replace(/\s+/g, " ").trim() })
+            .eq("id", w.id)
+        )
+      );
+    }
   }
 
   console.log("Phase 0.5 catalog hygiene complete!");
