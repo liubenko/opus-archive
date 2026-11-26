@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowUpRight, RotateCcw, Sparkles, Search } from "lucide-react";
 import type { Composer, ComposerRelation } from "@/types/database";
 import {
   ERA_ORDER,
@@ -26,22 +26,79 @@ const PAD_Y = 72;
 export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
+  const [eraFilter, setEraFilter] = useState<string>("All");
+  const [nationalityFilter, setNationalityFilter] = useState<string>("All");
+  const [focusSearch, setFocusSearch] = useState<string>("");
   const [activeTypes, setActiveTypes] = useState<Set<string>>(
     () => new Set(Object.keys(RELATION_META))
   );
 
   const activeId = hoveredId ?? selectedId;
 
-  // Only plot composers that participate in at least one relation so the graph stays clean as the DB grows to 200+
-  const graphComposers = useMemo(() => {
+  const composerById = useMemo(() => {
+    const map = new Map<number, Composer>();
+    for (const c of composers) map.set(c.id, c);
+    return map;
+  }, [composers]);
+
+  const nationalities = useMemo(() => {
     const involvedIds = new Set<number>();
     for (const r of relations) {
       involvedIds.add(r.source_composer_id);
       involvedIds.add(r.target_composer_id);
     }
-    const list = composers.filter((c) => involvedIds.has(c.id));
-    return list.length > 0 ? list : composers.slice(0, 30);
+    return Array.from(
+      new Set(
+        composers
+          .filter((c) => involvedIds.has(c.id))
+          .map((c) => c.nationality)
+          .filter(Boolean)
+      )
+    ).sort();
   }, [composers, relations]);
+
+  const visibleRelations = useMemo(() => {
+    return relations.filter((r) => {
+      if (!activeTypes.has(r.relation_type)) return false;
+      const src = composerById.get(r.source_composer_id);
+      const tgt = composerById.get(r.target_composer_id);
+      if (!src || !tgt) return false;
+      if (eraFilter !== "All" && src.era !== eraFilter && tgt.era !== eraFilter) {
+        return false;
+      }
+      if (
+        nationalityFilter !== "All" &&
+        src.nationality !== nationalityFilter &&
+        tgt.nationality !== nationalityFilter
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [relations, activeTypes, composerById, eraFilter, nationalityFilter]);
+
+  // Plot composers that participate in at least one visible relation
+  const graphComposers = useMemo(() => {
+    const involvedIds = new Set<number>();
+    for (const r of visibleRelations) {
+      involvedIds.add(r.source_composer_id);
+      involvedIds.add(r.target_composer_id);
+    }
+    const list = composers.filter((c) => involvedIds.has(c.id));
+    return list.length > 0 ? list : composers.slice(0, 20);
+  }, [composers, visibleRelations]);
+
+  const focusMatches = useMemo(() => {
+    const q = focusSearch.trim().toLowerCase();
+    if (!q) return [];
+    return graphComposers
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.sort_name.toLowerCase().includes(q)
+      )
+      .slice(0, 6);
+  }, [focusSearch, graphComposers]);
 
   const nodes = useMemo(() => {
     const sorted = [...graphComposers].sort(
@@ -71,11 +128,6 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
     for (const n of nodes) map.set(n.composer.id, n);
     return map;
   }, [nodes]);
-
-  const visibleRelations = useMemo(
-    () => relations.filter((r) => activeTypes.has(r.relation_type)),
-    [relations, activeTypes]
-  );
 
   const connectedNodeIds = useMemo(() => {
     if (activeId === null) return null;
@@ -129,46 +181,135 @@ export function InfluenceGraph({ composers, relations }: InfluenceGraphProps) {
   return (
     <div className="space-y-4">
       {/* Legend & Filter Chips */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-[#191714] rounded-2xl border border-stone-200/90 dark:border-stone-800/90 px-4 py-3 shadow-xs">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-500 mr-1">
-            Connections:
-          </span>
-          {Object.entries(RELATION_META).map(([key, meta]) => {
-            const count = relations.filter((r) => r.relation_type === key).length;
-            if (count === 0) return null;
-            const enabled = activeTypes.has(key);
-            return (
+      <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200/90 dark:border-stone-800/90 px-4 py-3.5 shadow-xs space-y-3">
+        <div className="flex flex-col md:flex-row gap-2.5 md:items-center justify-between">
+          {/* Focus Composer Search */}
+          <div className="relative flex-1 max-w-sm">
+            <Search className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={focusSearch}
+              onChange={(e) => setFocusSearch(e.target.value)}
+              placeholder="Focus on a composer's lineage (e.g. Bach, Chopin)..."
+              className="w-full pl-8 pr-3 py-1.5 text-xs bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 rounded-xl text-stone-900 dark:text-stone-100 focus:outline-none focus:border-[#9a7432] dark:focus:border-[#d4af6a]"
+            />
+            {focusMatches.length > 0 && (
+              <div className="absolute left-0 right-0 mt-1 bg-white dark:bg-[#1f1c18] border border-stone-200 dark:border-stone-700 rounded-xl shadow-lg z-30 overflow-hidden">
+                {focusMatches.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedId(c.id);
+                      setFocusSearch("");
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center justify-between gap-2 cursor-pointer"
+                  >
+                    <span className="font-medium text-stone-900 dark:text-stone-100">
+                      {c.name}
+                    </span>
+                    <span className="text-[10px] text-stone-400">{c.era}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={eraFilter}
+              onChange={(e) => {
+                setEraFilter(e.target.value);
+                setSelectedId(null);
+              }}
+              aria-label="Filter graph by era"
+              className="px-2.5 py-1.5 text-xs font-medium bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 rounded-xl text-stone-700 dark:text-stone-200 cursor-pointer"
+            >
+              <option value="All" className="dark:bg-[#191714]">
+                All Eras
+              </option>
+              {ERA_ORDER.map((e) => (
+                <option key={e} value={e} className="dark:bg-[#191714]">
+                  {e}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={nationalityFilter}
+              onChange={(e) => {
+                setNationalityFilter(e.target.value);
+                setSelectedId(null);
+              }}
+              aria-label="Filter graph by nationality"
+              className="px-2.5 py-1.5 text-xs font-medium bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 rounded-xl text-stone-700 dark:text-stone-200 cursor-pointer"
+            >
+              <option value="All" className="dark:bg-[#191714]">
+                All Nationalities
+              </option>
+              {nationalities.map((nat) => (
+                <option key={nat} value={nat} className="dark:bg-[#191714]">
+                  {nat}
+                </option>
+              ))}
+            </select>
+
+            {(selectedId !== null ||
+              eraFilter !== "All" ||
+              nationalityFilter !== "All") && (
               <button
-                key={key}
                 type="button"
-                onClick={() => toggleType(key)}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer ${
-                  enabled
-                    ? meta.badgeClass
-                    : "bg-stone-50 dark:bg-stone-900 text-stone-400 dark:text-stone-600 border-stone-200 dark:border-stone-800 opacity-60"
-                }`}
+                onClick={() => {
+                  setSelectedId(null);
+                  setEraFilter("All");
+                  setNationalityFilter("All");
+                  setFocusSearch("");
+                }}
+                className="inline-flex items-center gap-1 text-xs font-medium text-[#9a7432] dark:text-[#d4af6a] hover:underline cursor-pointer"
               >
-                <span
-                  className="w-2.5 h-0.5 rounded-full"
-                  style={{ backgroundColor: meta.hex }}
-                />
-                {meta.label} ({count})
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset
               </button>
-            );
-          })}
+            )}
+          </div>
         </div>
 
-        {selectedId !== null && (
-          <button
-            type="button"
-            onClick={() => setSelectedId(null)}
-            className="inline-flex items-center gap-1 text-xs font-medium text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Reset selection
-          </button>
-        )}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-stone-100 dark:border-stone-800/80">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-500 mr-1">
+              Connections:
+            </span>
+            {Object.entries(RELATION_META).map(([key, meta]) => {
+              const count = relations.filter(
+                (r) => r.relation_type === key
+              ).length;
+              if (count === 0) return null;
+              const enabled = activeTypes.has(key);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => toggleType(key)}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer ${
+                    enabled
+                      ? meta.badgeClass
+                      : "bg-stone-50 dark:bg-stone-900 text-stone-400 dark:text-stone-600 border-stone-200 dark:border-stone-800 opacity-60"
+                  }`}
+                >
+                  <span
+                    className="w-2.5 h-0.5 rounded-full"
+                    style={{ backgroundColor: meta.hex }}
+                  />
+                  {meta.label} ({count})
+                </button>
+              );
+            })}
+          </div>
+
+          <span className="text-[11px] font-mono text-stone-400 dark:text-stone-500">
+            {graphComposers.length} composers · {visibleRelations.length} links
+          </span>
+        </div>
       </div>
 
       {/* Main Graph + Inspector Split */}

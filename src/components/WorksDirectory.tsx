@@ -58,6 +58,44 @@ const INSTRUMENT_PRESETS = [
   { label: "Voice / Choir", value: "voice" },
 ];
 
+const DURATION_PRESETS = [
+  { label: "Any Duration", value: "All" },
+  { label: "Short (< 10 min)", value: "short" },
+  { label: "Recital (10–25 min)", value: "recital" },
+  { label: "Major Work (25–45 min)", value: "major" },
+  { label: "Epic (45+ min)", value: "epic" },
+];
+
+const KEY_OPTIONS = [
+  "C major",
+  "G major",
+  "D major",
+  "A major",
+  "E major",
+  "F major",
+  "B-flat major",
+  "E-flat major",
+  "A minor",
+  "E minor",
+  "D minor",
+  "G minor",
+  "C minor",
+  "F minor",
+  "C-sharp minor",
+  "B minor",
+  "F-sharp minor",
+];
+
+const PERIOD_PRESETS = [
+  { label: "Any Period", value: "All" },
+  { label: "Before 1750", value: "pre1750" },
+  { label: "1750–1799", value: "1750_1799" },
+  { label: "1800–1849", value: "1800_1849" },
+  { label: "1850–1899", value: "1850_1899" },
+  { label: "1900–1949", value: "1900_1949" },
+  { label: "1950+", value: "1950plus" },
+];
+
 interface WorksDirectoryProps {
   initialWorks: WorkWithComposer[];
   initialTotal: number;
@@ -78,6 +116,9 @@ export function WorksDirectory({
   const [genreFilter, setGenreFilter] = useState("All");
   const [catalogFilter, setCatalogFilter] = useState("All");
   const [instrumentFilter, setInstrumentFilter] = useState("All");
+  const [durationFilter, setDurationFilter] = useState("All");
+  const [keyFilter, setKeyFilter] = useState("All");
+  const [periodFilter, setPeriodFilter] = useState("All");
   const [popularOnly, setPopularOnly] = useState(false);
   const [imslpOnly, setImslpOnly] = useState(false);
   const [page, setPage] = useState(1);
@@ -90,6 +131,9 @@ export function WorksDirectory({
     genreFilter !== "All" ||
     catalogFilter !== "All" ||
     instrumentFilter !== "All" ||
+    durationFilter !== "All" ||
+    keyFilter !== "All" ||
+    periodFilter !== "All" ||
     popularOnly ||
     imslpOnly;
 
@@ -102,6 +146,9 @@ export function WorksDirectory({
     genreFilter,
     catalogFilter,
     instrumentFilter,
+    durationFilter,
+    keyFilter,
+    periodFilter,
     popularOnly,
     imslpOnly,
   ]);
@@ -151,6 +198,31 @@ export function WorksDirectory({
             `instrumentation.ilike.%${instrumentFilter}%,title.ilike.%${instrumentFilter}%`
           );
         }
+        if (durationFilter === "short") {
+          req = req.gt("duration_minutes", 0).lt("duration_minutes", 10);
+        } else if (durationFilter === "recital") {
+          req = req.gte("duration_minutes", 10).lte("duration_minutes", 25);
+        } else if (durationFilter === "major") {
+          req = req.gt("duration_minutes", 25).lte("duration_minutes", 45);
+        } else if (durationFilter === "epic") {
+          req = req.gt("duration_minutes", 45);
+        }
+        if (keyFilter !== "All") {
+          req = req.ilike("key_signature", `%${keyFilter}%`);
+        }
+        if (periodFilter === "pre1750") {
+          req = req.lt("year_composed", 1750);
+        } else if (periodFilter === "1750_1799") {
+          req = req.gte("year_composed", 1750).lte("year_composed", 1799);
+        } else if (periodFilter === "1800_1849") {
+          req = req.gte("year_composed", 1800).lte("year_composed", 1849);
+        } else if (periodFilter === "1850_1899") {
+          req = req.gte("year_composed", 1850).lte("year_composed", 1899);
+        } else if (periodFilter === "1900_1949") {
+          req = req.gte("year_composed", 1900).lte("year_composed", 1949);
+        } else if (periodFilter === "1950plus") {
+          req = req.gte("year_composed", 1950);
+        }
         if (popularOnly) req = req.eq("is_popular", true);
         if (imslpOnly) req = req.not("imslp_url", "is", null);
 
@@ -186,6 +258,9 @@ export function WorksDirectory({
     genreFilter,
     catalogFilter,
     instrumentFilter,
+    durationFilter,
+    keyFilter,
+    periodFilter,
     popularOnly,
     imslpOnly,
     page,
@@ -289,22 +364,68 @@ export function WorksDirectory({
           </div>
         </div>
 
-        {/* Instrument quick chips */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          {INSTRUMENT_PRESETS.map((inst) => (
-            <button
-              key={inst.value}
-              type="button"
-              onClick={() => setInstrumentFilter(inst.value)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors cursor-pointer ${
-                instrumentFilter === inst.value
-                  ? "bg-[#1a1816] dark:bg-[#f3efe6] text-white dark:text-[#11100e]"
-                  : "bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600"
-              }`}
+        {/* Instrument quick chips + Duration / Key / Period discovery row */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {INSTRUMENT_PRESETS.map((inst) => (
+              <button
+                key={inst.value}
+                type="button"
+                onClick={() => setInstrumentFilter(inst.value)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors cursor-pointer ${
+                  instrumentFilter === inst.value
+                    ? "bg-[#1a1816] dark:bg-[#f3efe6] text-white dark:text-[#11100e]"
+                    : "bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600"
+                }`}
+              >
+                {inst.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={durationFilter}
+              onChange={(e) => setDurationFilter(e.target.value)}
+              aria-label="Filter by duration"
+              className="px-2.5 py-1.5 text-xs font-medium bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 rounded-xl text-stone-700 dark:text-stone-200 cursor-pointer"
             >
-              {inst.label}
-            </button>
-          ))}
+              {DURATION_PRESETS.map((d) => (
+                <option key={d.value} value={d.value} className="dark:bg-[#191714]">
+                  {d.label}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={keyFilter}
+              onChange={(e) => setKeyFilter(e.target.value)}
+              aria-label="Filter by key signature"
+              className="px-2.5 py-1.5 text-xs font-medium bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 rounded-xl text-stone-700 dark:text-stone-200 cursor-pointer"
+            >
+              <option value="All" className="dark:bg-[#191714]">
+                Any Key
+              </option>
+              {KEY_OPTIONS.map((k) => (
+                <option key={k} value={k} className="dark:bg-[#191714]">
+                  {k}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={periodFilter}
+              onChange={(e) => setPeriodFilter(e.target.value)}
+              aria-label="Filter by composition period"
+              className="px-2.5 py-1.5 text-xs font-medium bg-[#faf8f4] dark:bg-[#141210] border border-stone-200 dark:border-stone-800 rounded-xl text-stone-700 dark:text-stone-200 cursor-pointer"
+            >
+              {PERIOD_PRESETS.map((p) => (
+                <option key={p.value} value={p.value} className="dark:bg-[#191714]">
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="flex items-center justify-between text-xs text-stone-500 dark:text-stone-400 pt-1">
@@ -329,6 +450,9 @@ export function WorksDirectory({
                 setGenreFilter("All");
                 setCatalogFilter("All");
                 setInstrumentFilter("All");
+                setDurationFilter("All");
+                setKeyFilter("All");
+                setPeriodFilter("All");
                 setPopularOnly(false);
                 setImslpOnly(false);
               }}

@@ -18,6 +18,7 @@ on:
           - imslp
           - musicbrainz
           - openopus
+          - relations
       batch_size:
         description: "Items per run (composers for sync / works for enrich)"
         required: false
@@ -75,6 +76,13 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: node scripts/hygiene-catalog.mjs
+
+      - name: Sync composer lineages from Wikidata (P1066 / P737)
+        if: ${{ github.event.inputs.source == 'relations' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: node scripts/sync-relations.mjs
 
       - name: Link IMSLP sheet music scores & harvest Work Info metadata
         if: ${{ github.event_name == 'schedule' || github.event.inputs.source == 'all' || github.event.inputs.source == 'imslp' }}
