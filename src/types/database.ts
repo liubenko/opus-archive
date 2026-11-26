@@ -504,6 +504,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      get_explore_aggregates: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
       search_catalog: {
         Args: {
           era_filter?: string;
