@@ -8,20 +8,33 @@ import { ComposerDirectory } from "@/components/ComposerDirectory";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [composersRes, worksCountRes, relationsCountRes] = await Promise.all([
-    supabase
-      .from("composers")
-      .select("*, works(count)")
-      .order("birth_year", { ascending: true }),
-    supabase.from("works").select("*", { count: "exact", head: true }),
-    supabase
-      .from("composer_relations")
-      .select("*", { count: "exact", head: true }),
-  ]);
+  const [composersRes, worksCountRes, relationsCountRes, settingsRes] =
+    await Promise.all([
+      supabase
+        .from("composers")
+        .select("*, works(count)")
+        .order("birth_year", { ascending: true }),
+      supabase.from("works").select("*", { count: "exact", head: true }),
+      supabase
+        .from("composer_relations")
+        .select("*", { count: "exact", head: true }),
+      supabase.from("site_settings").select("*").eq("id", 1).maybeSingle(),
+    ]);
 
   const composers = (composersRes.data ?? []) as ComposerWithWorkCount[];
   const totalWorks = worksCountRes.count ?? 0;
   const totalRelations = relationsCountRes.count ?? 0;
+  const settings = settingsRes.data;
+
+  const heroBadge =
+    settings?.hero_badge ||
+    "Curated Classical Music Reference & OpenOpus Catalog";
+  const heroTitle =
+    settings?.hero_title ||
+    "Explore Centuries of Classical Composers & Works";
+  const heroSubtitle =
+    settings?.hero_subtitle ||
+    "Browse biographies, opus & thematic catalog numbers (BWV, K., Op., Hob., RV, D., S., WWV), and trace musical lineages from Medieval & Renaissance polyphony to 20th-Century modernism.";
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-12">
@@ -30,20 +43,15 @@ export default async function HomePage() {
         <div className="max-w-3xl space-y-5">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-200/80 dark:border-amber-800/70 text-xs font-medium text-amber-900 dark:text-[#d4af6a]">
             <Sparkles className="w-3.5 h-3.5" />
-            Curated Classical Music Reference &amp; OpenOpus Catalog
+            {heroBadge}
           </div>
 
           <h1 className="font-serif text-3xl sm:text-5xl font-bold tracking-tight text-[#1a1816] dark:text-[#f3efe6] leading-[1.12]">
-            Explore Centuries of Classical Composers &amp; Works
+            {heroTitle}
           </h1>
 
           <p className="text-sm sm:text-base text-stone-600 dark:text-stone-400 leading-relaxed max-w-2xl">
-            Browse biographies, opus &amp; thematic catalog numbers (
-            <span className="font-mono text-xs text-stone-700 dark:text-stone-300">
-              BWV, K., Op., Hob., RV, D., S., WWV
-            </span>
-            ), and trace musical lineages from Medieval &amp; Renaissance polyphony
-            to 20th-Century modernism.
+            {heroSubtitle}
           </p>
 
           <div className="pt-1">

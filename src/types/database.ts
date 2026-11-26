@@ -117,6 +117,39 @@ export type Database = {
         };
         Relationships: [];
       };
+      site_settings: {
+        Row: {
+          footer_note: string;
+          hero_badge: string;
+          hero_subtitle: string;
+          hero_title: string;
+          id: number;
+          site_name: string;
+          site_tagline: string;
+          updated_at: string;
+        };
+        Insert: {
+          footer_note?: string;
+          hero_badge?: string;
+          hero_subtitle?: string;
+          hero_title?: string;
+          id?: number;
+          site_name?: string;
+          site_tagline?: string;
+          updated_at?: string;
+        };
+        Update: {
+          footer_note?: string;
+          hero_badge?: string;
+          hero_subtitle?: string;
+          hero_title?: string;
+          id?: number;
+          site_name?: string;
+          site_tagline?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       works: {
         Row: {
           catalog_display: string | null;
@@ -228,6 +261,8 @@ export type Composer = Database["public"]["Tables"]["composers"]["Row"];
 export type Work = Database["public"]["Tables"]["works"]["Row"];
 export type ComposerRelation =
   Database["public"]["Tables"]["composer_relations"]["Row"];
+export type SiteSettings =
+  Database["public"]["Tables"]["site_settings"]["Row"];
 export type SearchCatalogResult =
   Database["public"]["Functions"]["search_catalog"]["Returns"][number];
 

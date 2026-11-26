@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Music2, Library, Network, Users } from "lucide-react";
+import { Music2, Library, Network, Users, Shield } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
 const NAV_ITEMS = [
@@ -55,6 +55,18 @@ export function Navbar() {
               );
             })}
           </nav>
+          <Link
+            href="/admin"
+            title="Admin Panel"
+            aria-label="Admin Panel"
+            className={`inline-flex items-center justify-center w-9 h-9 rounded-lg border transition-colors ${
+              pathname.startsWith("/admin")
+                ? "bg-[#1a1816] dark:bg-[#d4af6a] text-white dark:text-[#11100e] border-transparent"
+                : "border-stone-200 dark:border-stone-800 bg-white dark:bg-[#191714] text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#24201b]"
+            }`}
+          >
+            <Shield className="w-4 h-4" />
+          </Link>
           <ThemeToggle />
         </div>
       </div>
