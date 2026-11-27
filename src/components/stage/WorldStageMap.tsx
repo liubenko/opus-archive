@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Compass, Globe2, RotateCcw } from "lucide-react";
+import { Compass, Globe2, Minus, Plus, RotateCcw } from "lucide-react";
 import type { Venue } from "@/types/database";
 import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -27,8 +27,33 @@ const REGION_PRESETS = [
   { id: "asia", label: "East Asia", center: [139.74, 35.67] as [number, number], zoom: 4.5 },
 ] as const;
 
-const DARK_MATTER_STYLE =
-  "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+interface GeoFeature {
+  type: "Feature";
+  properties: { name?: string };
+  geometry: {
+    type: "Polygon" | "MultiPolygon";
+    coordinates: number[][][] | number[][][][];
+  };
+}
+
+function projectMercator(lng: number, lat: number, w = 1000, h = 500): [number, number] {
+  const x = ((lng + 180) / 360) * w;
+  const clampedLat = Math.max(-72, Math.min(78, lat));
+  const latRad = (clampedLat * Math.PI) / 180;
+  const mercN = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
+  const y = h * 0.56 - (w * mercN) / (2 * Math.PI) * 0.78;
+  return [x, y];
+}
+
+function ringToSvgPath(ring: number[][]): string {
+  if (ring.length === 0) return "";
+  let d = "";
+  for (let i = 0; i < ring.length; i++) {
+    const [x, y] = projectMercator(ring[i][0], ring[i][1]);
+    d += `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+  }
+  return `${d}Z`;
+}
 
 export function WorldStageMap({
   venues,
@@ -40,85 +65,170 @@ export function WorldStageMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("maplibre-gl").Map | null>(null);
   const markersRef = useRef<import("maplibre-gl").Marker[]>([]);
+  const readyRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
+  const [useSvgFallback, setUseSvgFallback] = useState(false);
+  const [svgFeatures, setSvgFeatures] = useState<GeoFeature[]>([]);
+  const [svgZoom, setSvgZoom] = useState(1);
+  const [svgCenter, setSvgCenter] = useState<[number, number]>([500, 235]);
 
   const venuesByKey = useMemo(
     () => new Map(venues.map((v) => [v.slug, v])),
     [venues]
   );
 
-  // Initialize MapLibre GL instance client-side only
+  // Initialize MapLibre GL with explicit same-origin worker URL + inline hybrid style
   useEffect(() => {
     let cancelled = false;
+    readyRef.current = false;
     let instance: import("maplibre-gl").Map | null = null;
+    const watchdog = setTimeout(() => {
+      if (!cancelled && !readyRef.current) {
+        setUseSvgFallback(true);
+      }
+    }, 3500);
 
     (async () => {
-      if (!containerRef.current) return;
-      const maplibregl = await import("maplibre-gl");
-      if (cancelled || !containerRef.current) return;
+      try {
+        if (!containerRef.current) return;
+        const maplibregl = await import("maplibre-gl");
+        if (cancelled || !containerRef.current) return;
 
-      const map = new maplibregl.Map({
-        container: containerRef.current,
-        style: DARK_MATTER_STYLE,
-        center: [8, 34],
-        zoom: 1.55,
-        minZoom: 1.1,
-        maxZoom: 16,
-        attributionControl: false,
-      });
-      instance = map;
+        // Point MapLibre to the un-mangled same-origin ES module worker in /public
+        maplibregl.setWorkerUrl("/maplibre-gl-worker.mjs");
 
-      map.addControl(
-        new maplibregl.NavigationControl({ showCompass: false }),
-        "bottom-right"
-      );
-
-      map.on("load", () => {
-        if (cancelled) return;
-        map.addSource("tour-route", {
-          type: "geojson",
-          data: {
-            type: "Feature",
-            properties: {},
-            geometry: {
-              type: "LineString",
-              coordinates: [],
+        const map = new maplibregl.Map({
+          container: containerRef.current,
+          style: {
+            version: 8,
+            sources: {
+              "world-countries": {
+                type: "geojson",
+                data: "/world-countries.geojson",
+              },
+              "carto-dark": {
+                type: "raster",
+                tiles: [
+                  "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+                  "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+                  "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+                ],
+                tileSize: 256,
+              },
+              "tour-route": {
+                type: "geojson",
+                data: {
+                  type: "Feature",
+                  properties: {},
+                  geometry: {
+                    type: "LineString",
+                    coordinates: [],
+                  },
+                },
+              },
             },
+            layers: [
+              {
+                id: "bg",
+                type: "background",
+                paint: { "background-color": "#0b0a09" },
+              },
+              {
+                id: "countries-fill",
+                type: "fill",
+                source: "world-countries",
+                maxzoom: 6,
+                paint: {
+                  "fill-color": "#1c1814",
+                  "fill-opacity": 0.95,
+                },
+              },
+              {
+                id: "countries-outline",
+                type: "line",
+                source: "world-countries",
+                maxzoom: 6,
+                paint: {
+                  "line-color": "#352e25",
+                  "line-width": 0.8,
+                },
+              },
+              {
+                id: "carto-street-tiles",
+                type: "raster",
+                source: "carto-dark",
+                minzoom: 3,
+                maxzoom: 19,
+                paint: {
+                  "raster-fade-duration": 250,
+                  "raster-opacity": 0.92,
+                },
+              },
+              {
+                id: "tour-route-glow",
+                type: "line",
+                source: "tour-route",
+                paint: {
+                  "line-color": "#d4af6a",
+                  "line-width": 5,
+                  "line-opacity": 0.28,
+                  "line-blur": 3,
+                },
+              },
+              {
+                id: "tour-route-line",
+                type: "line",
+                source: "tour-route",
+                paint: {
+                  "line-color": "#e3c27d",
+                  "line-width": 2.2,
+                  "line-dasharray": [2, 2],
+                  "line-opacity": 0.9,
+                },
+              },
+            ],
           },
+          center: [8, 34],
+          zoom: 1.55,
+          minZoom: 1.1,
+          maxZoom: 17,
+          attributionControl: false,
         });
+        instance = map;
+        mapRef.current = map;
 
-        map.addLayer({
-          id: "tour-route-glow",
-          type: "line",
-          source: "tour-route",
-          paint: {
-            "line-color": "#d4af6a",
-            "line-width": 5,
-            "line-opacity": 0.25,
-            "line-blur": 3,
-          },
+        map.addControl(
+          new maplibregl.NavigationControl({ showCompass: false }),
+          "bottom-right"
+        );
+
+        const markReady = () => {
+          if (cancelled || readyRef.current) return;
+          readyRef.current = true;
+          clearTimeout(watchdog);
+          setMapReady(true);
+        };
+
+        map.once("style.load", markReady);
+        map.once("load", markReady);
+        map.on("error", (ev) => {
+          if (
+            String(ev?.error?.message || "").toLowerCase().includes("worker") ||
+            String(ev?.error?.message || "").toLowerCase().includes("webgl")
+          ) {
+            clearTimeout(watchdog);
+            if (!cancelled) setUseSvgFallback(true);
+          }
         });
-
-        map.addLayer({
-          id: "tour-route-line",
-          type: "line",
-          source: "tour-route",
-          paint: {
-            "line-color": "#e3c27d",
-            "line-width": 2,
-            "line-dasharray": [2, 2],
-            "line-opacity": 0.88,
-          },
-        });
-
-        setMapReady(true);
-      });
-
-      mapRef.current = map;
+      } catch {
+        clearTimeout(watchdog);
+        if (!cancelled) setUseSvgFallback(true);
+      }
     })();
 
     return () => {
       cancelled = true;
+      clearTimeout(watchdog);
       for (const m of markersRef.current) m.remove();
       markersRef.current = [];
       if (instance) instance.remove();
@@ -126,11 +236,20 @@ export function WorldStageMap({
     };
   }, []);
 
+  // Load same-origin world-countries.geojson if SVG fallback activates
+  useEffect(() => {
+    if (!useSvgFallback) return;
+    fetch("/world-countries.geojson")
+      .then((r) => r.json() as Promise<{ features?: GeoFeature[] }>)
+      .then((gj) => setSvgFeatures(gj.features || []))
+      .catch(() => {});
+  }, [useSvgFallback]);
+
   // Render interactive gold Concert Hall DOM markers whenever venues or selection change
   useEffect(() => {
     let disposed = false;
     (async () => {
-      if (!mapReady || !mapRef.current) return;
+      if (useSvgFallback || !mapReady || !mapRef.current) return;
       const maplibregl = await import("maplibre-gl");
       if (disposed || !mapRef.current) return;
 
@@ -225,11 +344,11 @@ export function WorldStageMap({
     return () => {
       disposed = true;
     };
-  }, [mapReady, venues, selectedVenueSlug, onSelectVenue]);
+  }, [useSvgFallback, mapReady, venues, selectedVenueSlug, onSelectVenue]);
 
   // Update tour-route GeoJSON line when an orchestra or soloist is selected
   useEffect(() => {
-    if (!mapReady || !mapRef.current) return;
+    if (useSvgFallback || !mapReady || !mapRef.current) return;
     const src = mapRef.current.getSource("tour-route") as
       | import("maplibre-gl").GeoJSONSource
       | undefined;
@@ -244,22 +363,41 @@ export function WorldStageMap({
           tourRouteCoords && tourRouteCoords.length >= 2 ? tourRouteCoords : [],
       },
     });
-  }, [mapReady, tourRouteCoords]);
+  }, [useSvgFallback, mapReady, tourRouteCoords]);
 
   // Fly smoothly when user selects a specific venue
   useEffect(() => {
-    if (!mapReady || !mapRef.current) return;
     if (selectedVenueSlug === "all") return;
     const target = venuesByKey.get(selectedVenueSlug);
     if (!target) return;
+
+    if (useSvgFallback) {
+      const [px, py] = projectMercator(target.longitude, target.latitude);
+      setSvgCenter([px, py]);
+      setSvgZoom(3.2);
+      return;
+    }
+
+    if (!mapReady || !mapRef.current) return;
     mapRef.current.flyTo({
       center: [target.longitude, target.latitude],
       zoom: Math.max(mapRef.current.getZoom(), 11.5),
       duration: 1100,
     });
-  }, [mapReady, selectedVenueSlug, venuesByKey]);
+  }, [useSvgFallback, mapReady, selectedVenueSlug, venuesByKey]);
 
   function flyPreset(center: [number, number], zoom: number) {
+    if (useSvgFallback) {
+      if (zoom <= 2) {
+        setSvgCenter([500, 235]);
+        setSvgZoom(1);
+      } else {
+        const [px, py] = projectMercator(center[0], center[1]);
+        setSvgCenter([px, py]);
+        setSvgZoom(Math.min(4.2, zoom * 0.72));
+      }
+      return;
+    }
     mapRef.current?.flyTo({ center, zoom, duration: 950 });
   }
 
@@ -308,10 +446,105 @@ export function WorldStageMap({
         </div>
       </div>
 
-      {/* MapLibre Canvas */}
-      <div className="relative w-full h-[430px] sm:h-[490px] bg-[#0b0a09]">
-        <div ref={containerRef} className="w-full h-full" />
-        {!mapReady && (
+      {/* MapLibre WebGL Stage OR Interactive SVG Vector Fallback */}
+      <div className="relative w-full h-[430px] sm:h-[490px] bg-[#0b0a09] overflow-hidden">
+        {!useSvgFallback && <div ref={containerRef} className="w-full h-full" />}
+
+        {useSvgFallback && (
+          <div className="w-full h-full relative">
+            <svg
+              viewBox="0 0 1000 500"
+              className="w-full h-full select-none"
+              role="img"
+              aria-label="Interactive World Concert Venues Map"
+            >
+              <g
+                transform={`translate(500, 250) scale(${svgZoom}) translate(${-svgCenter[0]}, ${-svgCenter[1]})`}
+              >
+                {svgFeatures.map((f, idx) => {
+                  const paths =
+                    f.geometry.type === "Polygon"
+                      ? (f.geometry.coordinates as number[][][]).map(ringToSvgPath)
+                      : (f.geometry.coordinates as number[][][][]).flatMap((poly) =>
+                          poly.map(ringToSvgPath)
+                        );
+                  return (
+                    <path
+                      key={idx}
+                      d={paths.join(" ")}
+                      fill="#1c1814"
+                      stroke="#352e25"
+                      strokeWidth={0.6 / svgZoom}
+                    />
+                  );
+                })}
+
+                {tourRouteCoords && tourRouteCoords.length >= 2 && (
+                  <polyline
+                    fill="none"
+                    stroke="#e3c27d"
+                    strokeWidth={2 / svgZoom}
+                    strokeDasharray={`${4 / svgZoom} ${4 / svgZoom}`}
+                    points={tourRouteCoords
+                      .map(([lng, lat]) => projectMercator(lng, lat).join(","))
+                      .join(" ")}
+                  />
+                )}
+
+                {venues.map((v) => {
+                  const [vx, vy] = projectMercator(v.longitude, v.latitude);
+                  const isSel = selectedVenueSlug === v.slug;
+                  const active = v.activeEventCount > 0;
+                  return (
+                    <g
+                      key={v.id}
+                      transform={`translate(${vx}, ${vy}) scale(${1 / svgZoom})`}
+                      onClick={() =>
+                        onSelectVenue(isSel ? "all" : v.slug)
+                      }
+                      className="cursor-pointer"
+                    >
+                      <circle
+                        r={isSel ? 8 : 5.5}
+                        fill={isSel ? "#fff8eb" : active ? "#d4af6a" : "#57534e"}
+                        stroke="#11100e"
+                        strokeWidth={1.5}
+                      />
+                      <text
+                        y={-10}
+                        textAnchor="middle"
+                        fontSize="10.5"
+                        fontWeight="600"
+                        fill={isSel ? "#e3c27d" : active ? "#f3efe6" : "#78716c"}
+                      >
+                        {v.short_name || v.city} ({v.activeEventCount})
+                      </text>
+                    </g>
+                  );
+                })}
+              </g>
+            </svg>
+
+            <div className="absolute bottom-3 right-3 flex flex-col gap-1">
+              <button
+                type="button"
+                onClick={() => setSvgZoom((z) => Math.min(5, +(z + 0.5).toFixed(2)))}
+                className="p-2 rounded-lg bg-[#191714] border border-stone-700 text-stone-200 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setSvgZoom((z) => Math.max(1, +(z - 0.5).toFixed(2)))}
+                className="p-2 rounded-lg bg-[#191714] border border-stone-700 text-stone-200 cursor-pointer"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!mapReady && !useSvgFallback && (
           <div className="absolute inset-0 flex items-center justify-center text-xs text-stone-400 gap-2 pointer-events-none">
             <Compass className="w-4 h-4 animate-spin text-[#d4af6a]" />
             Loading interactive vector atlas...
@@ -334,7 +567,7 @@ export function WorldStageMap({
           )}
         </div>
         <span className="text-[10px] text-stone-500">
-          MapLibre GL · © OpenStreetMap · © CARTO
+          MapLibre GL · Natural Earth · © OpenStreetMap · © CARTO
         </span>
       </div>
     </div>
