@@ -410,10 +410,6 @@ export function AdminPanel() {
 
     const catalogSystem = editingWork.catalog_system?.trim() || null;
     const catalogNumber = editingWork.catalog_number?.trim() || null;
-    const catalogDisplay =
-      catalogSystem && catalogNumber
-        ? `${catalogSystem} ${catalogNumber}`
-        : catalogNumber || catalogSystem || null;
 
     const payload = {
       composer_id: Number(editingWork.composer_id),
@@ -421,7 +417,6 @@ export function AdminPanel() {
       nickname: editingWork.nickname?.trim() || null,
       catalog_system: catalogSystem,
       catalog_number: catalogNumber,
-      catalog_display: catalogDisplay,
       genre: editingWork.genre || "Chamber",
       key_signature: editingWork.key_signature?.trim() || null,
       year_composed: editingWork.year_composed

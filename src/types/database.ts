@@ -835,7 +835,7 @@ export type Database = {
         };
         Insert: {
           apple_music_url?: string | null;
-          catalog_display?: string | null;
+          catalog_display?: never;
           catalog_number?: string | null;
           catalog_system?: string | null;
           composer_id: number;
@@ -861,7 +861,7 @@ export type Database = {
         };
         Update: {
           apple_music_url?: string | null;
-          catalog_display?: string | null;
+          catalog_display?: never;
           catalog_number?: string | null;
           catalog_system?: string | null;
           composer_id?: number;

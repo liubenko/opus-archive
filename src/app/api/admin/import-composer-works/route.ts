@@ -272,18 +272,12 @@ export async function POST(request: Request) {
 
     if (imslpUrl) linkedImslpScores++;
 
-    const catalogDisplay =
-      cat.catalog_system && cat.catalog_number
-        ? `${cat.catalog_system} ${cat.catalog_number}`
-        : null;
-
     rowsToInsert.push({
       composer_id: composer.id,
       title: cand.title,
       genre: cand.genre,
       catalog_system: cat.catalog_system,
       catalog_number: cat.catalog_number,
-      catalog_display: catalogDisplay,
       key_signature: extractKey(cand.title),
       is_popular: cand.is_popular,
       imslp_url: imslpUrl,

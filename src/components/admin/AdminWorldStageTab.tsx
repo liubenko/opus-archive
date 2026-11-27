@@ -277,7 +277,6 @@ export function AdminWorldStageTab({
           genre: sug.suggested_genre || "Orchestral",
           catalog_system: catMatch ? catMatch[1] : null,
           catalog_number: catMatch ? catMatch[2] : null,
-          catalog_display: catRaw,
           year_composed: sug.suggested_year ?? null,
           key_signature: sug.suggested_key_signature?.trim() || null,
           duration_minutes: sug.suggested_duration_minutes ?? null,
