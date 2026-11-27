@@ -99,95 +99,7 @@ export function WorldStageMap({
 
         const map = new maplibregl.Map({
           container: containerRef.current,
-          style: {
-            version: 8,
-            sources: {
-              "world-countries": {
-                type: "geojson",
-                data: "/world-countries.geojson",
-              },
-              "carto-dark": {
-                type: "raster",
-                tiles: [
-                  "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-                  "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-                  "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-                ],
-                tileSize: 256,
-              },
-              "tour-route": {
-                type: "geojson",
-                data: {
-                  type: "Feature",
-                  properties: {},
-                  geometry: {
-                    type: "LineString",
-                    coordinates: [],
-                  },
-                },
-              },
-            },
-            layers: [
-              {
-                id: "bg",
-                type: "background",
-                paint: { "background-color": "#0b0a09" },
-              },
-              {
-                id: "countries-fill",
-                type: "fill",
-                source: "world-countries",
-                maxzoom: 6,
-                paint: {
-                  "fill-color": "#1c1814",
-                  "fill-opacity": 0.95,
-                },
-              },
-              {
-                id: "countries-outline",
-                type: "line",
-                source: "world-countries",
-                maxzoom: 6,
-                paint: {
-                  "line-color": "#352e25",
-                  "line-width": 0.8,
-                },
-              },
-              {
-                id: "carto-street-tiles",
-                type: "raster",
-                source: "carto-dark",
-                minzoom: 3,
-                maxzoom: 19,
-                paint: {
-                  "raster-fade-duration": 250,
-                  "raster-opacity": 0.92,
-                },
-              },
-              {
-                id: "tour-route-glow",
-                type: "line",
-                source: "tour-route",
-                paint: {
-                  "line-color": "#d4af6a",
-                  "line-width": 5,
-                  "line-opacity": 0.28,
-                  "line-blur": 3,
-                },
-              },
-              {
-                id: "tour-route-line",
-                type: "line",
-                source: "tour-route",
-                paint: {
-                  "line-color": "#e3c27d",
-                  "line-width": 2.2,
-                  "line-dasharray": [2, 2],
-                  "line-opacity": 0.9,
-                },
-              },
-            ],
-          },
+          style: "https://tiles.openfreemap.org/styles/dark",
           center: [8, 34],
           zoom: 1.55,
           minZoom: 1.1,
@@ -206,6 +118,43 @@ export function WorldStageMap({
           if (cancelled || readyRef.current) return;
           readyRef.current = true;
           clearTimeout(watchdog);
+
+          if (!map.getSource("tour-route")) {
+            map.addSource("tour-route", {
+              type: "geojson",
+              data: {
+                type: "Feature",
+                properties: {},
+                geometry: {
+                  type: "LineString",
+                  coordinates: [],
+                },
+              },
+            });
+            map.addLayer({
+              id: "tour-route-glow",
+              type: "line",
+              source: "tour-route",
+              paint: {
+                "line-color": "#d4af6a",
+                "line-width": 5,
+                "line-opacity": 0.28,
+                "line-blur": 3,
+              },
+            });
+            map.addLayer({
+              id: "tour-route-line",
+              type: "line",
+              source: "tour-route",
+              paint: {
+                "line-color": "#e3c27d",
+                "line-width": 2.2,
+                "line-dasharray": [2, 2],
+                "line-opacity": 0.9,
+              },
+            });
+          }
+
           setMapReady(true);
         };
 
@@ -567,7 +516,7 @@ export function WorldStageMap({
           )}
         </div>
         <span className="text-[10px] text-stone-500">
-          MapLibre GL · Natural Earth · © OpenStreetMap · © CARTO
+          MapLibre GL · OpenFreeMap · © OpenStreetMap
         </span>
       </div>
     </div>
