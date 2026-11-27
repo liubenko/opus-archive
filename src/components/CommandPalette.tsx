@@ -14,9 +14,11 @@ import {
   Code2,
   CornerDownLeft,
   Globe2,
+  Sparkles,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { SearchCatalogResult } from "@/types/database";
+import { openSuggestCatalogModal } from "./SuggestCatalogModal";
 
 const QUICK_LINKS = [
   { label: "Browse All Composers", href: "/", icon: User },
@@ -180,9 +182,37 @@ export function CommandPalette() {
         {/* Results */}
         <div className="max-h-[55vh] overflow-y-auto p-2">
           {navItems.length === 0 && !loading ? (
-            <p className="py-8 text-center text-xs text-stone-500">
-              No matches found for &ldquo;{query}&rdquo;.
-            </p>
+            <div className="py-8 px-4 text-center space-y-3">
+              <p className="text-xs text-stone-500">
+                No matches found for &ldquo;{query}&rdquo; in Opus Archive yet.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const q = query;
+                    setOpen(false);
+                    openSuggestCatalogModal({ mode: "work", query: q });
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1a1816] dark:bg-[#d4af6a] text-white dark:text-[#11100e] text-xs font-semibold cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Propose Missing Work
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const q = query;
+                    setOpen(false);
+                    openSuggestCatalogModal({ mode: "composer", query: q });
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-stone-200 dark:border-stone-700 text-xs font-semibold text-stone-700 dark:text-stone-200 hover:border-[#d4af6a] cursor-pointer"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  Propose Composer
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="space-y-0.5">
               <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-stone-400">
@@ -236,7 +266,21 @@ export function CommandPalette() {
         {/* Footer */}
         <div className="px-4 py-2 border-t border-stone-200 dark:border-stone-800 bg-[#faf8f4] dark:bg-[#141210] flex items-center justify-between text-[11px] text-stone-400">
           <span>↑↓ to navigate · Enter to open · Esc to close</span>
-          <span className="font-mono">⌘K</span>
+          {query.trim() ? (
+            <button
+              type="button"
+              onClick={() => {
+                const q = query;
+                setOpen(false);
+                openSuggestCatalogModal({ mode: "work", query: q });
+              }}
+              className="text-[#9a7432] dark:text-[#d4af6a] font-semibold hover:underline cursor-pointer"
+            >
+              + Propose missing entry
+            </button>
+          ) : (
+            <span className="font-mono">⌘K</span>
+          )}
         </div>
       </div>
     </div>

@@ -127,5 +127,14 @@
 - [x] Built `/admin` **Stage & Inbox** tab (`AdminWorldStageTab.tsx`): review unmatched works spotted on orchestra/soloist programs with 1-click **Approve & Add to Library** (auto-links all concerts performing that work), **Link to Existing Work**, or **Dismiss**
 - [x] Added on-demand **Season URL / JSON-LD / iCal / NYPhil Live Importer** and manual concert builder inside `/admin` (`/api/admin/import-season`)
 
+---
+
+## Phase 12 — Community Search Proposals & Open-Library Auto-Enrichment ✅
+
+- [x] Extended `public.catalog_suggestions` + `public.submit_catalog_suggestion` RPC with atomic deduplication (`occurrence_count` request priority bumping) and rate-limited submission (`/api/v1/suggest/submit`)
+- [x] Built `/api/v1/suggest/lookup` querying **Wikipedia REST, OpenOpus, MusicBrainz, and IMSLP (`{{Work Info}}`)** in parallel to auto-fill portraits, biographies, birth/death years, opus numbers, keys, instrumentation, and score links
+- [x] Built global `SuggestCatalogModal` wired into Homepage search, `⌘K` Command Palette, Composer Directory, and `/works`
+- [x] Upgraded `/admin` **Catalog Moderation Inbox** with source filters (*Community Search* vs *Concert Seasons*) and 1-click **Approve + Import Top Works & IMSLP** (`/api/admin/import-composer-works`)
+
 
 

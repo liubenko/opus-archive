@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Filter, Music, Globe, Search, FileMusic } from "lucide-react";
+import { ArrowRight, Filter, Music, Globe, Search, FileMusic, Sparkles } from "lucide-react";
 import type { ComposerWithWorkCount } from "@/types/database";
 import { ERA_ORDER, formatLifespan, getEraStyle } from "@/lib/constants";
 import { ComposerAvatar } from "./ComposerAvatar";
 import { SelectMenu } from "./SelectMenu";
+import { openSuggestCatalogModal } from "./SuggestCatalogModal";
 
 interface ComposerDirectoryProps {
   composers: ComposerWithWorkCount[];
@@ -145,20 +146,39 @@ export function ComposerDirectory({ composers }: ComposerDirectoryProps) {
 
       {/* Composer Grid */}
       {filtered.length === 0 ? (
-        <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200 dark:border-stone-800 p-12 text-center">
+        <div className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200 dark:border-stone-800 p-12 text-center space-y-3">
           <p className="text-stone-600 dark:text-stone-400 text-sm">
-            No composers match your selected filters.
+            No composers in the catalog match{" "}
+            {searchQuery.trim() ? `"${searchQuery}"` : "your selected filters"}.
           </p>
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedEra("All");
-              setSelectedNationality("All");
-            }}
-            className="mt-3 text-xs font-medium text-[#9a7432] dark:text-[#d4af6a] hover:underline cursor-pointer"
-          >
-            Reset filters
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+            {searchQuery.trim() && (
+              <button
+                type="button"
+                onClick={() =>
+                  openSuggestCatalogModal({
+                    mode: "composer",
+                    query: searchQuery,
+                  })
+                }
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1a1816] dark:bg-[#d4af6a] text-white dark:text-[#11100e] text-xs font-semibold cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Auto-Fetch &amp; Propose &ldquo;{searchQuery}&rdquo;
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedEra("All");
+                setSelectedNationality("All");
+                setSearchQuery("");
+              }}
+              className="text-xs font-medium text-[#9a7432] dark:text-[#d4af6a] hover:underline cursor-pointer"
+            >
+              Reset filters
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">

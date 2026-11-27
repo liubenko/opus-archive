@@ -20,6 +20,7 @@ import { supabase } from "@/lib/supabase";
 import type { WorkWithComposer } from "@/types/database";
 import { ERA_ORDER, getEraStyle } from "@/lib/constants";
 import { SelectMenu } from "./SelectMenu";
+import { openSuggestCatalogModal } from "./SuggestCatalogModal";
 
 const GENRE_OPTIONS = [
   "Symphony",
@@ -517,9 +518,29 @@ export function WorksDirectory({
                     colSpan={7}
                     className="py-12 px-4 text-center text-stone-500 dark:text-stone-400"
                   >
-                    {loading
-                      ? "Searching catalog..."
-                      : "No works match your filters."}
+                    {loading ? (
+                      "Searching catalog..."
+                    ) : (
+                      <div className="space-y-3">
+                        <p>
+                          No works match{" "}
+                          {query.trim() ? `"${query}"` : "your current filters"}.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openSuggestCatalogModal({
+                              mode: "work",
+                              query,
+                            })
+                          }
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1a1816] dark:bg-[#d4af6a] text-white dark:text-[#11100e] text-xs font-semibold cursor-pointer"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Propose Missing Work from Open Libraries
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ) : (

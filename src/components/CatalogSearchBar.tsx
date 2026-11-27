@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Search, X, Loader2, ArrowUpRight, Music, User } from "lucide-react";
+import { Search, X, Loader2, ArrowUpRight, Music, User, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { SearchCatalogResult } from "@/types/database";
 import { ComposerAvatar } from "./ComposerAvatar";
 import { getEraStyle } from "@/lib/constants";
+import { openSuggestCatalogModal } from "./SuggestCatalogModal";
 
 const EXAMPLE_QUERIES = [
   "BWV 1007",
@@ -135,9 +136,34 @@ export function CatalogSearchBar() {
               Searching the archive...
             </div>
           ) : results.length === 0 ? (
-            <div className="p-6 text-center text-sm text-stone-500 dark:text-stone-400">
-              No matches found for &ldquo;{query}&rdquo;. Try a composer name,
-              catalog number (Op., BWV, K., RV, D.), or genre.
+            <div className="p-6 text-center space-y-3">
+              <p className="text-sm text-stone-500 dark:text-stone-400">
+                No matches found for &ldquo;{query}&rdquo; in the catalog yet.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    openSuggestCatalogModal({ mode: "work", query });
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1a1816] dark:bg-[#d4af6a] text-white dark:text-[#11100e] text-xs font-semibold cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Propose Missing Work
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    openSuggestCatalogModal({ mode: "composer", query });
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-stone-200 dark:border-stone-700 text-xs font-semibold text-stone-700 dark:text-stone-200 hover:border-[#d4af6a] cursor-pointer"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  Propose Composer
+                </button>
+              </div>
             </div>
           ) : (
             <div className="divide-y divide-stone-100 dark:divide-stone-800">
@@ -237,6 +263,23 @@ export function CatalogSearchBar() {
                   </div>
                 </div>
               )}
+
+              <div className="px-4 py-2.5 bg-[#faf8f4] dark:bg-[#141210] flex items-center justify-between gap-2 text-xs">
+                <span className="text-stone-500 dark:text-stone-400">
+                  Missing a piece or composer?
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    openSuggestCatalogModal({ mode: "work", query });
+                  }}
+                  className="inline-flex items-center gap-1 font-semibold text-[#9a7432] dark:text-[#d4af6a] hover:underline cursor-pointer"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Auto-fetch &amp; propose &ldquo;{query.slice(0, 24)}&rdquo; →
+                </button>
+              </div>
             </div>
           )}
         </div>
