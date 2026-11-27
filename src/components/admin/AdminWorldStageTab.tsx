@@ -74,6 +74,11 @@ export function AdminWorldStageTab({
   >("all");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [enrichingId, setEnrichingId] = useState<number | null>(null);
+  const [enrichingAll, setEnrichingAll] = useState(false);
+  const [enrichedSources, setEnrichedSources] = useState<
+    Record<number, string[]>
+  >({});
 
   // Inline "Link to Existing Work" modal state
   const [linkingSug, setLinkingSug] = useState<CatalogSuggestion | null>(null);
@@ -366,6 +371,210 @@ export function AdminWorldStageTab({
     );
   }
 
+  async function handleEnrichSuggestion(
+    sug: CatalogSuggestion,
+    opts?: { silent?: boolean }
+  ): Promise<boolean> {
+    const isComposerProposal = sug.suggestion_type === "composer";
+    setEnrichingId(sug.id);
+    try {
+      const params = new URLSearchParams({
+        type: isComposerProposal ? "composer" : "work",
+        q: isComposerProposal
+          ? sug.suggested_composer_name
+          : sug.suggested_work_title,
+        composer: sug.suggested_composer_name,
+      });
+      const res = await fetch(`/api/v1/suggest/lookup?${params.toString()}`);
+      if (!res.ok) {
+        if (!opts?.silent) {
+          showToast("error", "Metadata lookup failed.");
+        }
+        return false;
+      }
+
+      const data = (await res.json()) as {
+        candidates?: {
+          title?: string;
+          name?: string;
+          genre?: string;
+          catalog_display?: string | null;
+          key_signature?: string | null;
+          year_composed?: number | null;
+          duration_minutes?: number | null;
+          instrumentation?: string | null;
+          description?: string | null;
+          imslp_url?: string | null;
+          birth_year?: number | null;
+          death_year?: number | null;
+          nationality?: string;
+          era?: string;
+          avatar_url?: string | null;
+          short_bio?: string;
+          sources?: string[];
+          composer_meta?: {
+            birth_year?: number | null;
+            death_year?: number | null;
+            nationality?: string;
+            era?: string;
+            avatar_url?: string | null;
+            short_bio?: string;
+            imslp_url?: string | null;
+          } | null;
+        }[];
+      };
+
+      const top = data.candidates?.[0];
+      if (!top) {
+        if (!opts?.silent) {
+          showToast(
+            "error",
+            `No open-library metadata found for "${
+              isComposerProposal
+                ? sug.suggested_composer_name
+                : sug.suggested_work_title
+            }".`
+          );
+        }
+        return false;
+      }
+
+      const patch: Partial<Omit<CatalogSuggestion, "id">> = {};
+      if (isComposerProposal) {
+        if (top.birth_year) patch.composer_birth_year = top.birth_year;
+        if (top.death_year) patch.composer_death_year = top.death_year;
+        if (top.nationality && top.nationality !== "International") {
+          patch.composer_nationality = top.nationality;
+        }
+        if (top.era) patch.composer_era = top.era;
+        if (top.avatar_url) patch.composer_avatar_url = top.avatar_url;
+        if (top.imslp_url) patch.composer_imslp_url = top.imslp_url;
+        if (top.short_bio) patch.composer_short_bio = top.short_bio;
+      } else {
+        if (!sug.suggested_catalog_display && top.catalog_display) {
+          patch.suggested_catalog_display = top.catalog_display;
+        }
+        if (top.year_composed && !sug.suggested_year) {
+          patch.suggested_year = top.year_composed;
+        }
+        if (top.key_signature && !sug.suggested_key_signature) {
+          patch.suggested_key_signature = top.key_signature;
+        }
+        if (top.duration_minutes && !sug.suggested_duration_minutes) {
+          patch.suggested_duration_minutes = top.duration_minutes;
+        }
+        if (top.instrumentation && !sug.suggested_instrumentation) {
+          patch.suggested_instrumentation = top.instrumentation;
+        }
+        if (top.imslp_url && !sug.suggested_imslp_url) {
+          patch.suggested_imslp_url = top.imslp_url;
+        }
+        if (top.description && !sug.suggested_description) {
+          patch.suggested_description = top.description;
+        }
+        if (
+          top.genre &&
+          (!sug.suggested_genre || sug.suggested_genre === "Orchestral")
+        ) {
+          patch.suggested_genre = top.genre;
+        }
+        if (top.composer_meta && !sug.matched_composer_id) {
+          if (top.composer_meta.birth_year && !sug.composer_birth_year) {
+            patch.composer_birth_year = top.composer_meta.birth_year;
+          }
+          if (top.composer_meta.death_year && !sug.composer_death_year) {
+            patch.composer_death_year = top.composer_meta.death_year;
+          }
+          if (
+            top.composer_meta.nationality &&
+            !sug.composer_nationality
+          ) {
+            patch.composer_nationality = top.composer_meta.nationality;
+          }
+          if (top.composer_meta.era && !sug.composer_era) {
+            patch.composer_era = top.composer_meta.era;
+          }
+          if (top.composer_meta.avatar_url && !sug.composer_avatar_url) {
+            patch.composer_avatar_url = top.composer_meta.avatar_url;
+          }
+          if (top.composer_meta.short_bio && !sug.composer_short_bio) {
+            patch.composer_short_bio = top.composer_meta.short_bio;
+          }
+          if (top.composer_meta.imslp_url && !sug.composer_imslp_url) {
+            patch.composer_imslp_url = top.composer_meta.imslp_url;
+          }
+        }
+      }
+
+      const filledCount = Object.keys(patch).length;
+      if (filledCount === 0) {
+        if (!opts?.silent) {
+          showToast(
+            "success",
+            `Already up to date (checked ${(top.sources || []).join(" · ") || "open libraries"}).`
+          );
+        }
+        return false;
+      }
+
+      updateLocalSuggestionField(sug.id, patch);
+      if (top.sources?.length) {
+        setEnrichedSources((prev) => ({
+          ...prev,
+          [sug.id]: top.sources || [],
+        }));
+      }
+
+      await supabase
+        .from("catalog_suggestions")
+        .update({ ...patch, updated_at: new Date().toISOString() })
+        .eq("id", sug.id);
+
+      if (!opts?.silent) {
+        showToast(
+          "success",
+          `Auto-filled ${filledCount} field${filledCount === 1 ? "" : "s"} from ${(top.sources || ["open libraries"]).join(" · ")}.`
+        );
+      }
+      return true;
+    } finally {
+      setEnrichingId(null);
+    }
+  }
+
+  async function handleEnrichAllPending() {
+    const targets = visibleSuggestions.filter((s) => {
+      if (s.status !== "pending") return false;
+      if (s.suggestion_type === "composer") {
+        return !s.composer_birth_year || !s.composer_short_bio;
+      }
+      return (
+        !s.suggested_year ||
+        !s.suggested_key_signature ||
+        !s.suggested_instrumentation ||
+        !s.suggested_imslp_url
+      );
+    });
+    if (targets.length === 0) {
+      showToast("success", "All visible pending items already have metadata.");
+      return;
+    }
+    setEnrichingAll(true);
+    let updated = 0;
+    try {
+      for (const sug of targets) {
+        const didUpdate = await handleEnrichSuggestion(sug, { silent: true });
+        if (didUpdate) updated++;
+      }
+      showToast(
+        "success",
+        `Auto-enriched ${updated} of ${targets.length} pending item${targets.length === 1 ? "" : "s"}!`
+      );
+    } finally {
+      setEnrichingAll(false);
+    }
+  }
+
   async function callImportApi(payload: Record<string, unknown>) {
     setImporting(true);
     try {
@@ -430,6 +639,22 @@ export function AdminWorldStageTab({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {statusFilter === "pending" && visibleSuggestions.length > 0 && (
+              <button
+                type="button"
+                disabled={enrichingAll || enrichingId !== null}
+                onClick={handleEnrichAllPending}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#9a7432]/15 dark:bg-[#d4af6a]/15 border border-[#d4af6a]/40 text-[#9a7432] dark:text-[#e3c27d] text-xs font-semibold hover:bg-[#d4af6a]/25 cursor-pointer disabled:opacity-50"
+              >
+                {enrichingAll ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5" />
+                )}
+                {enrichingAll ? "Enriching..." : "Auto-enrich Pending"}
+              </button>
+            )}
+
             {/* Source filter pills */}
             <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-[#f3efe8] dark:bg-[#12100e] border border-stone-200 dark:border-stone-800">
               {(
@@ -757,6 +982,21 @@ export function AdminWorldStageTab({
                           </button>
                           <button
                             type="button"
+                            disabled={
+                              isBusy || enrichingAll || enrichingId === sug.id
+                            }
+                            onClick={() => handleEnrichSuggestion(sug)}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#d4af6a]/40 bg-[#d4af6a]/10 text-[#9a7432] dark:text-[#e3c27d] text-xs font-semibold hover:bg-[#d4af6a]/20 cursor-pointer disabled:opacity-50"
+                          >
+                            {enrichingId === sug.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Sparkles className="w-3.5 h-3.5" />
+                            )}
+                            Auto-fetch Metadata
+                          </button>
+                          <button
+                            type="button"
                             disabled={isBusy}
                             onClick={() => handleDismissSuggestion(sug)}
                             className="px-3 py-1.5 rounded-xl text-xs text-stone-500 hover:text-red-500 cursor-pointer"
@@ -896,6 +1136,21 @@ export function AdminWorldStageTab({
                           </button>
                           <button
                             type="button"
+                            disabled={
+                              isBusy || enrichingAll || enrichingId === sug.id
+                            }
+                            onClick={() => handleEnrichSuggestion(sug)}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#d4af6a]/40 bg-[#d4af6a]/10 text-[#9a7432] dark:text-[#e3c27d] text-xs font-semibold hover:bg-[#d4af6a]/20 cursor-pointer disabled:opacity-50"
+                          >
+                            {enrichingId === sug.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Sparkles className="w-3.5 h-3.5" />
+                            )}
+                            Auto-fetch Metadata
+                          </button>
+                          <button
+                            type="button"
                             disabled={isBusy}
                             onClick={() => {
                               setLinkingSug(sug);
@@ -910,6 +1165,11 @@ export function AdminWorldStageTab({
                             <Link2 className="w-3.5 h-3.5" />
                             Link to Existing Work
                           </button>
+                          {enrichedSources[sug.id]?.length ? (
+                            <span className="text-[10px] px-2 py-1 rounded-lg bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20 font-medium">
+                              via {enrichedSources[sug.id].join(" · ")}
+                            </span>
+                          ) : null}
                           {sug.suggested_imslp_url && (
                             <a
                               href={sug.suggested_imslp_url}

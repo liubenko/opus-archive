@@ -15,6 +15,7 @@ import {
   parseNyPhilPrograms,
   splitComposerAndWork,
 } from "../../../../../scripts/lib/season-parser.mjs";
+import { lookupWorkCandidates } from "@/lib/catalog-lookup";
 
 export const dynamic = "force-dynamic";
 
@@ -197,6 +198,7 @@ export async function POST(request: Request) {
   let importedEvents = 0;
   let matchedWorks = 0;
   let queuedSuggestions = 0;
+  let enrichedSuggestions = 0;
   const nowIso = new Date().toISOString();
 
   for (const ev of incoming) {
@@ -365,11 +367,55 @@ export async function POST(request: Request) {
               .eq("id", exSug.id);
           }
         } else {
+          // Auto-enrich up to 10 newly queued season suggestions via IMSLP / Wikipedia / MusicBrainz
+          let enrichedPatch: Partial<
+            Database["public"]["Tables"]["catalog_suggestions"]["Insert"]
+          > = {};
+          if (enrichedSuggestions < 10) {
+            try {
+              const cands = await lookupWorkCandidates(
+                wItem.workTitle,
+                matchedComp?.name || wItem.composerName,
+                { includeComposerMeta: !matchedComp }
+              );
+              const top = cands[0];
+              if (top) {
+                enrichedSuggestions++;
+                enrichedPatch = {
+                  suggested_genre: top.genre || meta.genre,
+                  suggested_catalog_display:
+                    meta.catalogDisplay || top.catalog_display || null,
+                  suggested_year: top.year_composed ?? null,
+                  suggested_key_signature: top.key_signature ?? null,
+                  suggested_duration_minutes: top.duration_minutes ?? null,
+                  suggested_instrumentation: top.instrumentation ?? null,
+                  suggested_description: top.description ?? null,
+                  suggested_imslp_url: top.imslp_url ?? null,
+                  ...(top.composer_meta && !matchedComp
+                    ? {
+                        composer_birth_year: top.composer_meta.birth_year,
+                        composer_death_year: top.composer_meta.death_year,
+                        composer_nationality: top.composer_meta.nationality,
+                        composer_era: top.composer_meta.era,
+                        composer_avatar_url: top.composer_meta.avatar_url,
+                        composer_short_bio: top.composer_meta.short_bio,
+                        composer_imslp_url: top.composer_meta.imslp_url,
+                      }
+                    : {}),
+                };
+              }
+            } catch {
+              // Non-fatal: still insert the season suggestion without enrichment
+            }
+          }
+
           const { data: newSug } = await client
             .from("catalog_suggestions")
             .insert({
               dedup_key: meta.dedupKey,
               status: "pending",
+              suggestion_type: "work",
+              source_type: "season_sync",
               suggested_work_title: wItem.workTitle,
               suggested_composer_name: matchedComp?.name || wItem.composerName,
               matched_composer_id: matchedComp?.id ?? null,
@@ -379,6 +425,7 @@ export async function POST(request: Request) {
               source_url: ev.sourceUrl || venue.calendar_url,
               sample_event_id: savedEvent.id,
               occurrence_count: 1,
+              ...enrichedPatch,
             })
             .select("*")
             .single();
