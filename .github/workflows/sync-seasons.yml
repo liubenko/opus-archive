@@ -1,0 +1,41 @@
+name: Sync World Stage Seasons (Venues, Orchestras & Soloists)
+
+on:
+  # Runs automatically once a week on Mondays at 04:30 UTC
+  schedule:
+    - cron: "30 4 * * 1"
+  # On-demand manual trigger with optional external URL
+  workflow_dispatch:
+    inputs:
+      custom_url:
+        description: "Optional concert page or .ics URL to ingest"
+        required: false
+        default: ""
+
+jobs:
+  sync-seasons:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync orchestra, venue & soloist seasons
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          CUSTOM_SEASON_URL: ${{ github.event.inputs.custom_url }}
+        run: |
+          if [ -n "$CUSTOM_SEASON_URL" ]; then
+            node scripts/sync-seasons.mjs "--url=$CUSTOM_SEASON_URL"
+          else
+            node scripts/sync-seasons.mjs
+          fi

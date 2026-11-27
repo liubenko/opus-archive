@@ -33,7 +33,8 @@ Classical musicians, conservatory students, and chamber ensembles constantly jug
 - Homepage *Work of the Day* spotlight, Dedicated Composer pages (with *Contemporaries Lifespan Overlap*), and SEO Work pages (`/works/[slug]`) with movements and community-bookmarked editions/recordings
 - Verified **IMSLP Score** links & public-domain edition browser
 - Reference recording links (YouTube, Spotify, Apple Music Classical)
-- Interactive Composer Influence Graph & Lifespan Timeline (`/explore`)
+- Interactive Composer Knowledge Graph (Force Constellation, Lineage Fan, Orbital Chord Ring, Alluvial Stream) & Lifespan Timeline (`/explore`)
+- **World Stage Atlas (`/stage`):** Interactive global concert hall map, orchestra seasons, soloist tour calendars, and live clickable concert programs linked directly to scores and recordings
 - Public read-only REST API (`/api/v1/*`) with interactive playground (`/docs/api`)
 - **Starter Musician Quota:** Track up to **20 repertoire pieces**, log practice sessions with the built-in **Practice Timer**, and build & share **1 active recital program** free
 
@@ -52,10 +53,11 @@ Classical musicians, conservatory students, and chamber ensembles constantly jug
 | **Frontend** | Next.js App Router, React 19, TypeScript, Tailwind CSS v4, Dark Concert Hall (default) + Light Editorial theme |
 | **Hosting** | Cloudflare Workers via `vinext` (`force-dynamic`, zero-KV edge deployment) |
 | **Database** | Supabase PostgreSQL (`composers` project) with `pg_trgm` fuzzy search, full-text `tsvector` indexes, and canonical deduplication triggers |
-| **Catalog Scale** | 314 composers · 23,539+ works · 56 lineage connections · 1,435+ verified IMSLP links (growing daily) |
-| **Public API** | `/api/v1`, `/api/v1/composers`, `/api/v1/composers/:slug`, `/api/v1/works`, `/api/v1/search`, `/api/v1/graph` |
-| **Data Pipeline** | Daily GitHub Actions sync (`03:00 UTC` + manual dispatch): OpenOpus + Wikipedia + MusicBrainz + Wikidata + IMSLP MediaWiki API |
-| **Admin Console** | `/admin` gated by Supabase Auth + `app_metadata.role = 'admin'` RLS policies; full CRUD for Composers, Works, Lineage Connections, and live `site_settings` |
+| **Catalog Scale** | 314 composers · 19,804 clean top-level works · 3,621 structured movements · 160 lineage connections · 5,735+ verified IMSLP score links |
+| **World Stage** | Global concert halls (`venues`), orchestras & soloists (`performers`), season calendars (`concert_events`), and automated repertoire linking |
+| **Public API** | `/api/v1`, `/api/v1/composers`, `/api/v1/composers/:slug`, `/api/v1/works`, `/api/v1/works/:slug`, `/api/v1/search`, `/api/v1/graph`, `/api/v1/stage` |
+| **Data Pipeline** | Daily catalog sync + Weekly season calendar sync (`MusicEvent` JSON-LD, NY Phil Open Archive, institution adapters, Wikidata) |
+| **Admin Console** | `/admin` gated by Supabase Auth + `app_metadata.role = 'admin'` RLS; CRUD for Catalog, **Suggestions Inbox** (1-click add missing works spotted in concert seasons), URL/iCal season importer, and `site_settings` |
 
 ---
 

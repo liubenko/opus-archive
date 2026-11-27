@@ -104,5 +104,28 @@
 
 - [x] Added `is_public`, `share_slug`, and `performer_name` to `public.recital_programs` with public read-only RLS when `is_public = true`
 - [x] Built `/programs/[slug]` public concert sheet view with Print / Save PDF button and IMSLP score links for collaborators
+- [x] Rebuilt `/explore` with Interactive Composer Avatar Knowledge Graph (`KnowledgeGraphAtlas`), 3-stage Era → School → Genre `AlluvialFlowChart`, and Year-Crosshair Lifespan Timeline
+
+---
+
+# v3 — World Stage: Venues, Orchestras, Soloist Seasons & Live Triage
+
+## Phase 10 — Interactive World Venues Map, Orchestras & Soloist Calendars (`/stage`) ✅
+
+- [x] Created World Stage schema (`public.venues`, `public.performers`, `public.concert_events`, `public.concert_event_performers`, `public.concert_event_works`, `public.catalog_suggestions`) with strict RLS and indexed foreign keys
+- [x] Seeded 12 iconic world concert halls (Carnegie Hall, Philharmonie Berlin, David Geffen Hall, Musikverein, Concertgebouw, Wigmore Hall, Barbican Hall, Elbphilharmonie, Philharmonie de Paris, Walt Disney Concert Hall, Suntory Hall, Teatro alla Scala), 5 flagship orchestras (Berliner Philharmoniker, NY Philharmonic, Wiener Philharmoniker, LSO, Royal Concertgebouw Orchestra), and 14+ leading soloists & conductors (strong Cello, Piano, and Violin focus)
+- [x] Built interactive **MapLibre GL JS** Dark Matter vector atlas at `/stage` with venue pins, tour-route polylines, city/region zoom, and 4-way cross-filtering by Venue, Orchestra, Soloist, and Month
+- [x] Built dedicated Venue season pages (`/stage/venues/[slug]`) and Orchestra / Soloist tour calendar pages (`/stage/artists/[slug]`) with clickable `/works/[slug]` program items and subtle *"Cataloging Pending"* badges for unmatched repertoire
+- [x] Surfaced *"Live on the World Stage"* on `/works/[slug]` and exposed `/api/v1/stage` REST endpoints
+
+---
+
+## Phase 11 — Weekly Season Ingestion Pipeline & `/admin` Suggestions Inbox ✅
+
+- [x] Built `scripts/sync-seasons.mjs` + `scripts/lib/season-parser.mjs` combining `Schema.org MusicEvent` JSON-LD / `.ics` extraction, NY Philharmonic CC0 Open Data JSON feed, and canonical work/composer matching
+- [x] Scheduled automated weekly season refresh via `.github/workflows/sync-seasons.yml` (`workflow_dispatch` + Mondays `04:30 UTC`)
+- [x] Built `/admin` **Stage & Inbox** tab (`AdminWorldStageTab.tsx`): review unmatched works spotted on orchestra/soloist programs with 1-click **Approve & Add to Library** (auto-links all concerts performing that work), **Link to Existing Work**, or **Dismiss**
+- [x] Added on-demand **Season URL / JSON-LD / iCal / NYPhil Live Importer** and manual concert builder inside `/admin` (`/api/admin/import-season`)
+
 
 

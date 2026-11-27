@@ -13,6 +13,7 @@ import {
   Bookmark,
   Code2,
   CornerDownLeft,
+  Globe2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { SearchCatalogResult } from "@/types/database";
@@ -20,7 +21,8 @@ import type { SearchCatalogResult } from "@/types/database";
 const QUICK_LINKS = [
   { label: "Browse All Composers", href: "/", icon: User },
   { label: "Master Works & Opus Index", href: "/works", icon: Library },
-  { label: "Influence Graph & Timeline", href: "/explore", icon: Network },
+  { label: "World Stage (Venues, Orchestras & Soloists)", href: "/stage", icon: Globe2 },
+  { label: "Knowledge Graph & Timeline", href: "/explore", icon: Network },
   { label: "My Studio (Repertoire & Programs)", href: "/studio", icon: Bookmark },
   { label: "Public & Personal REST API Docs", href: "/docs/api", icon: Code2 },
 ];

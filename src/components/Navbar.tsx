@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Music2, Library, Network, Users, Bookmark, Search } from "lucide-react";
+import { Music2, Library, Network, Users, Bookmark, Search, Globe2 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
 const NAV_ITEMS = [
   { href: "/", label: "Composers", icon: Users },
   { href: "/works", label: "Works Index", icon: Library },
+  { href: "/stage", label: "World Stage", icon: Globe2 },
   { href: "/explore", label: "Graph & Analytics", icon: Network },
   { href: "/studio", label: "My Studio", icon: Bookmark },
 ];

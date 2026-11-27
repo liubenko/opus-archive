@@ -12,6 +12,351 @@ export type Database = {
   };
   public: {
     Tables: {
+      catalog_suggestions: {
+        Row: {
+          created_at: string;
+          dedup_key: string;
+          id: number;
+          matched_composer_id: number | null;
+          occurrence_count: number;
+          resolved_work_id: number | null;
+          sample_event_id: number | null;
+          source_context: string | null;
+          source_url: string | null;
+          status: string;
+          suggested_catalog_display: string | null;
+          suggested_composer_name: string;
+          suggested_genre: string | null;
+          suggested_instrumentation: string | null;
+          suggested_work_title: string;
+          suggested_year: number | null;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          dedup_key: string;
+          id?: never;
+          matched_composer_id?: number | null;
+          occurrence_count?: number;
+          resolved_work_id?: number | null;
+          sample_event_id?: number | null;
+          source_context?: string | null;
+          source_url?: string | null;
+          status?: string;
+          suggested_catalog_display?: string | null;
+          suggested_composer_name: string;
+          suggested_genre?: string | null;
+          suggested_instrumentation?: string | null;
+          suggested_work_title: string;
+          suggested_year?: number | null;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          dedup_key?: string;
+          id?: never;
+          matched_composer_id?: number | null;
+          occurrence_count?: number;
+          resolved_work_id?: number | null;
+          sample_event_id?: number | null;
+          source_context?: string | null;
+          source_url?: string | null;
+          status?: string;
+          suggested_catalog_display?: string | null;
+          suggested_composer_name?: string;
+          suggested_genre?: string | null;
+          suggested_instrumentation?: string | null;
+          suggested_work_title?: string;
+          suggested_year?: number | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      concert_event_performers: {
+        Row: {
+          billing_role: string;
+          created_at: string;
+          display_order: number;
+          event_id: number;
+          id: number;
+          instrument_label: string | null;
+          performer_id: number;
+        };
+        Insert: {
+          billing_role?: string;
+          created_at?: string;
+          display_order?: number;
+          event_id: number;
+          id?: never;
+          instrument_label?: string | null;
+          performer_id: number;
+        };
+        Update: {
+          billing_role?: string;
+          created_at?: string;
+          display_order?: number;
+          event_id?: number;
+          id?: never;
+          instrument_label?: string | null;
+          performer_id?: number;
+        };
+        Relationships: [];
+      };
+      concert_event_works: {
+        Row: {
+          composer_id: number | null;
+          created_at: string;
+          display_order: number;
+          event_id: number;
+          id: number;
+          is_world_premiere: boolean;
+          program_note: string | null;
+          raw_composer_name: string;
+          raw_work_title: string;
+          suggestion_id: number | null;
+          work_id: number | null;
+        };
+        Insert: {
+          composer_id?: number | null;
+          created_at?: string;
+          display_order?: number;
+          event_id: number;
+          id?: never;
+          is_world_premiere?: boolean;
+          program_note?: string | null;
+          raw_composer_name: string;
+          raw_work_title: string;
+          suggestion_id?: number | null;
+          work_id?: number | null;
+        };
+        Update: {
+          composer_id?: number | null;
+          created_at?: string;
+          display_order?: number;
+          event_id?: number;
+          id?: never;
+          is_world_premiere?: boolean;
+          program_note?: string | null;
+          raw_composer_name?: string;
+          raw_work_title?: string;
+          suggestion_id?: number | null;
+          work_id?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "concert_event_works_work_id_fkey";
+            columns: ["work_id"];
+            isOneToOne: false;
+            referencedRelation: "works";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "concert_event_works_composer_id_fkey";
+            columns: ["composer_id"];
+            isOneToOne: false;
+            referencedRelation: "composers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "concert_event_works_event_id_fkey";
+            columns: ["event_id"];
+            isOneToOne: false;
+            referencedRelation: "concert_events";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      concert_events: {
+        Row: {
+          conductor_id: number | null;
+          created_at: string;
+          ends_at: string | null;
+          external_key: string | null;
+          id: number;
+          notes: string | null;
+          primary_orchestra_id: number | null;
+          season: string;
+          slug: string;
+          source_url: string | null;
+          starts_at: string;
+          status: string;
+          subtitle: string | null;
+          ticket_url: string | null;
+          title: string;
+          updated_at: string;
+          venue_id: number;
+        };
+        Insert: {
+          conductor_id?: number | null;
+          created_at?: string;
+          ends_at?: string | null;
+          external_key?: string | null;
+          id?: never;
+          notes?: string | null;
+          primary_orchestra_id?: number | null;
+          season?: string;
+          slug: string;
+          source_url?: string | null;
+          starts_at: string;
+          status?: string;
+          subtitle?: string | null;
+          ticket_url?: string | null;
+          title: string;
+          updated_at?: string;
+          venue_id: number;
+        };
+        Update: {
+          conductor_id?: number | null;
+          created_at?: string;
+          ends_at?: string | null;
+          external_key?: string | null;
+          id?: never;
+          notes?: string | null;
+          primary_orchestra_id?: number | null;
+          season?: string;
+          slug?: string;
+          source_url?: string | null;
+          starts_at?: string;
+          status?: string;
+          subtitle?: string | null;
+          ticket_url?: string | null;
+          title?: string;
+          updated_at?: string;
+          venue_id?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "concert_events_venue_id_fkey";
+            columns: ["venue_id"];
+            isOneToOne: false;
+            referencedRelation: "venues";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      performers: {
+        Row: {
+          avatar_url: string | null;
+          calendar_url: string | null;
+          created_at: string;
+          home_city: string | null;
+          id: number;
+          instrument_or_role: string | null;
+          is_featured: boolean;
+          last_synced_at: string | null;
+          name: string;
+          nationality: string | null;
+          performer_type: string;
+          resident_venue_id: number | null;
+          short_bio: string | null;
+          slug: string;
+          updated_at: string;
+          website_url: string | null;
+        };
+        Insert: {
+          avatar_url?: string | null;
+          calendar_url?: string | null;
+          created_at?: string;
+          home_city?: string | null;
+          id?: never;
+          instrument_or_role?: string | null;
+          is_featured?: boolean;
+          last_synced_at?: string | null;
+          name: string;
+          nationality?: string | null;
+          performer_type: string;
+          resident_venue_id?: number | null;
+          short_bio?: string | null;
+          slug: string;
+          updated_at?: string;
+          website_url?: string | null;
+        };
+        Update: {
+          avatar_url?: string | null;
+          calendar_url?: string | null;
+          created_at?: string;
+          home_city?: string | null;
+          id?: never;
+          instrument_or_role?: string | null;
+          is_featured?: boolean;
+          last_synced_at?: string | null;
+          name?: string;
+          nationality?: string | null;
+          performer_type?: string;
+          resident_venue_id?: number | null;
+          short_bio?: string | null;
+          slug?: string;
+          updated_at?: string;
+          website_url?: string | null;
+        };
+        Relationships: [];
+      };
+      venues: {
+        Row: {
+          address: string | null;
+          architect_or_acoustics: string | null;
+          calendar_url: string | null;
+          capacity: number | null;
+          city: string;
+          country: string;
+          country_code: string | null;
+          created_at: string;
+          description: string | null;
+          id: number;
+          latitude: number;
+          longitude: number;
+          name: string;
+          opened_year: number | null;
+          photo_url: string | null;
+          short_name: string | null;
+          slug: string;
+          updated_at: string;
+          website_url: string | null;
+        };
+        Insert: {
+          address?: string | null;
+          architect_or_acoustics?: string | null;
+          calendar_url?: string | null;
+          capacity?: number | null;
+          city: string;
+          country: string;
+          country_code?: string | null;
+          created_at?: string;
+          description?: string | null;
+          id?: never;
+          latitude: number;
+          longitude: number;
+          name: string;
+          opened_year?: number | null;
+          photo_url?: string | null;
+          short_name?: string | null;
+          slug: string;
+          updated_at?: string;
+          website_url?: string | null;
+        };
+        Update: {
+          address?: string | null;
+          architect_or_acoustics?: string | null;
+          calendar_url?: string | null;
+          capacity?: number | null;
+          city?: string;
+          country?: string;
+          country_code?: string | null;
+          created_at?: string;
+          description?: string | null;
+          id?: never;
+          latitude?: number;
+          longitude?: number;
+          name?: string;
+          opened_year?: number | null;
+          photo_url?: string | null;
+          short_name?: string | null;
+          slug?: string;
+          updated_at?: string;
+          website_url?: string | null;
+        };
+        Relationships: [];
+      };
       composer_relations: {
         Row: {
           created_at: string;
@@ -568,3 +913,13 @@ export type ComposerWithWorkCount = Composer & {
 export type WorkWithComposer = Work & {
   composers: Pick<Composer, "id" | "name" | "slug" | "era" | "nationality" | "avatar_url"> | null;
 };
+
+export type Venue = Database["public"]["Tables"]["venues"]["Row"];
+export type Performer = Database["public"]["Tables"]["performers"]["Row"];
+export type ConcertEvent = Database["public"]["Tables"]["concert_events"]["Row"];
+export type ConcertEventPerformer =
+  Database["public"]["Tables"]["concert_event_performers"]["Row"];
+export type ConcertEventWork =
+  Database["public"]["Tables"]["concert_event_works"]["Row"];
+export type CatalogSuggestion =
+  Database["public"]["Tables"]["catalog_suggestions"]["Row"];

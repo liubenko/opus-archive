@@ -16,6 +16,8 @@ interface SelectMenuProps {
   ariaLabel?: string;
   align?: "left" | "right";
   variant?: "default" | "inline";
+  className?: string;
+  buttonClassName?: string;
 }
 
 export function SelectMenu({
@@ -26,6 +28,8 @@ export function SelectMenu({
   ariaLabel,
   align = "left",
   variant = "default",
+  className = "",
+  buttonClassName = "",
 }: SelectMenuProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -60,13 +64,13 @@ export function SelectMenu({
       : "inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-[#191714] border border-stone-200 dark:border-stone-800 text-xs font-medium text-stone-700 dark:text-stone-200 hover:border-[#9a7432]/70 dark:hover:border-[#d4af6a]/70 transition-colors cursor-pointer";
 
   return (
-    <div ref={containerRef} className="relative inline-block">
+    <div ref={containerRef} className={`relative inline-block ${className}`}>
       <button
         type="button"
         aria-label={ariaLabel}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={buttonClasses}
+        className={`${buttonClasses} ${buttonClassName}`}
       >
         {icon && <span className="text-stone-400 dark:text-stone-500 shrink-0">{icon}</span>}
         <span className="truncate max-w-[180px]">{selected.label}</span>

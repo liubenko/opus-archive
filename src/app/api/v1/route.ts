@@ -39,6 +39,7 @@ export async function GET(request: Request) {
       work_detail: `${origin}/api/v1/works/das-lied-von-der-glocke-op-45-15576`,
       search: `${origin}/api/v1/search?q=BWV+1007`,
       graph: `${origin}/api/v1/graph?connected_only=true`,
+      stage: `${origin}/api/v1/stage?venue=carnegie-hall`,
       imslp_editions: `${origin}/api/v1/imslp/editions?url=https://imslp.org/wiki/Cello_Suite_No.1_in_G_major,_BWV_1007_(Bach,_Johann_Sebastian)`,
       me_repertoire: `${origin}/api/v1/me/repertoire (Bearer JWT required)`,
       me_programs: `${origin}/api/v1/me/programs (Bearer JWT required)`,

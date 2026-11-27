@@ -14,6 +14,8 @@ import {
   Tag,
   ListMusic,
   ChevronRight,
+  Globe2,
+  MapPin,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Composer, Work, WorkMovement } from "@/types/database";
@@ -115,7 +117,7 @@ export default async function WorkDetailPage({ params }: WorkPageProps) {
 
   const { work, composer } = found;
 
-  const [movementsRes, moreByComposerRes, similarWorksRes] = await Promise.all([
+  const [movementsRes, moreByComposerRes, similarWorksRes, liveEventsRes] = await Promise.all([
     supabase
       .from("work_movements")
       .select("*")
@@ -141,6 +143,12 @@ export default async function WorkDetailPage({ params }: WorkPageProps) {
       .eq("is_popular", true)
       .order("year_composed", { ascending: true })
       .limit(4),
+    supabase
+      .from("concert_event_works")
+      .select(
+        "event_id, concert_events(id, title, starts_at, ticket_url, venues(slug, name, short_name, city, country))"
+      )
+      .eq("work_id", work.id),
   ]);
 
   const movements = (movementsRes.data ?? []) as WorkMovement[];
@@ -166,6 +174,26 @@ export default async function WorkDetailPage({ params }: WorkPageProps) {
   const eraStyle = getEraStyle(composer?.era ?? "");
   const effectiveMovementsCount =
     work.movements_count ?? (movements.length > 0 ? movements.length : null);
+
+  const livePerformances = ((liveEventsRes.data ?? []) as unknown as {
+    event_id: number;
+    concert_events: {
+      id: number;
+      title: string;
+      starts_at: string;
+      ticket_url: string | null;
+      venues: {
+        slug: string;
+        name: string;
+        short_name: string | null;
+        city: string;
+        country: string;
+      } | null;
+    } | null;
+  }[])
+    .map((r) => r.concert_events)
+    .filter((ev): ev is NonNullable<typeof ev> => Boolean(ev))
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8">
@@ -402,6 +430,66 @@ export default async function WorkDetailPage({ params }: WorkPageProps) {
       {/* IMSLP Sheet Music Editions */}
       {work.imslp_url && (
         <WorkImslpEditions workId={work.id} imslpUrl={work.imslp_url} />
+      )}
+
+      {/* Live Performances on World Stage */}
+      {livePerformances.length > 0 && (
+        <section className="bg-white dark:bg-[#191714] rounded-2xl border border-stone-200/90 dark:border-stone-800/90 p-6 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-serif text-xl font-bold text-stone-900 dark:text-[#f3efe6] flex items-center gap-2">
+              <Globe2 className="w-4 h-4 text-[#9a7432] dark:text-[#d4af6a]" />
+              Live on the World Stage ({livePerformances.length})
+            </h2>
+            <Link
+              href="/stage"
+              className="text-xs font-medium text-[#9a7432] dark:text-[#d4af6a] hover:underline"
+            >
+              Open World Atlas →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {livePerformances.map((ev) => (
+              <div
+                key={ev.id}
+                className="p-3.5 rounded-xl bg-[#faf8f4] dark:bg-[#141210] border border-stone-200/80 dark:border-stone-800 flex items-start justify-between gap-3"
+              >
+                <div className="min-w-0 space-y-1">
+                  <span className="font-mono text-[11px] font-semibold text-[#9a7432] dark:text-[#d4af6a] block">
+                    {new Date(ev.starts_at).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                      timeZone: "UTC",
+                    })}
+                  </span>
+                  <p className="text-xs font-bold text-stone-900 dark:text-[#f3efe6] line-clamp-1">
+                    {ev.title}
+                  </p>
+                  {ev.venues && (
+                    <Link
+                      href={`/stage/venues/${ev.venues.slug}`}
+                      className="inline-flex items-center gap-1 text-[11px] text-stone-500 dark:text-stone-400 hover:text-[#d4af6a]"
+                    >
+                      <MapPin className="w-3 h-3" />
+                      {ev.venues.short_name || ev.venues.name} · {ev.venues.city}
+                    </Link>
+                  )}
+                </div>
+                {ev.ticket_url && (
+                  <a
+                    href={ev.ticket_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-1.5 rounded-lg border border-stone-200 dark:border-stone-700 text-stone-500 hover:text-[#d4af6a] shrink-0"
+                    title="Official event page"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Structured Movements */}

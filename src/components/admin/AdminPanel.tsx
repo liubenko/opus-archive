@@ -20,6 +20,7 @@ import {
   ExternalLink,
   Loader2,
   AlertCircle,
+  Globe2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type {
@@ -30,6 +31,7 @@ import type {
 } from "@/types/database";
 import { ERA_ORDER, RELATION_META, formatLifespan } from "@/lib/constants";
 import { ComposerAvatar } from "@/components/ComposerAvatar";
+import { AdminWorldStageTab } from "./AdminWorldStageTab";
 
 const WORK_GENRES = [
   "Symphony",
@@ -45,7 +47,7 @@ const WORK_GENRES = [
   "Stage & Incidental",
 ] as const;
 
-type TabId = "overview" | "composers" | "works" | "relations" | "settings";
+type TabId = "overview" | "stage" | "composers" | "works" | "relations" | "settings";
 
 function slugify(text: string) {
   return text
@@ -80,6 +82,7 @@ export function AdminPanel() {
     composers: 0,
     works: 0,
     relations: 0,
+    pendingSuggestions: 0,
     missingAvatars: 0,
     missingYears: 0,
     missingDescriptions: 0,
@@ -164,6 +167,7 @@ export function AdminPanel() {
       missingYearsRes,
       missingDescRes,
       missingDurRes,
+      pendingSugRes,
     ] = await Promise.all([
       supabase.from("composers").select("*").order("sort_name", { ascending: true }),
       supabase.from("composer_relations").select("*").order("id", { ascending: false }),
@@ -185,6 +189,10 @@ export function AdminPanel() {
         .from("works")
         .select("*", { count: "exact", head: true })
         .is("duration_minutes", null),
+      supabase
+        .from("catalog_suggestions")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pending"),
     ]);
 
     const compList = compListRes.data ?? [];
@@ -197,6 +205,7 @@ export function AdminPanel() {
       composers: compList.length,
       works: worksCountRes.count ?? 0,
       relations: relList.length,
+      pendingSuggestions: pendingSugRes.count ?? 0,
       missingAvatars: missingAvatarsRes.count ?? 0,
       missingYears: missingYearsRes.count ?? 0,
       missingDescriptions: missingDescRes.count ?? 0,
@@ -773,6 +782,11 @@ export function AdminPanel() {
 
   const TABS: { id: TabId; label: string; icon: typeof Users }[] = [
     { id: "overview", label: "Overview", icon: BarChart3 },
+    {
+      id: "stage",
+      label: `Stage & Inbox (${stats.pendingSuggestions})`,
+      icon: Globe2,
+    },
     { id: "composers", label: `Composers (${composers.length})`, icon: Users },
     { id: "works", label: `Works (${stats.works})`, icon: Music },
     { id: "relations", label: `Connections (${relations.length})`, icon: Network },
@@ -921,6 +935,15 @@ export function AdminPanel() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* TAB 1B: WORLD STAGE & SUGGESTIONS INBOX */}
+      {activeTab === "stage" && (
+        <AdminWorldStageTab
+          composers={composers}
+          onCatalogChanged={loadCoreData}
+          showToast={showToast}
+        />
       )}
 
       {/* TAB 2: COMPOSERS */}
