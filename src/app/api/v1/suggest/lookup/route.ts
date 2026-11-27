@@ -385,17 +385,29 @@ async function lookupComposerCandidates(
 function parseImslpWorkInfo(wikitext: string) {
   const getField = (pattern: string) => {
     const m = wikitext.match(
-      new RegExp(`\\|\\s*(?:${pattern})\\s*=\\s*([^\\n]+)`, "i")
+      new RegExp(`^\\|[ \\t]*(?:${pattern})[ \\t]*=[ \\t]*([^\\r\\n]*)`, "im")
     );
     if (!m) return null;
-    return m[1]
-      .replace(/\{\{Key\|([a-g])([b#s]?)\}\}/g, (_, n, acc) => `${n.toUpperCase()}${acc === "b" ? "-flat" : acc === "#" || acc === "s" ? "-sharp" : ""} minor`)
-      .replace(/\{\{Key\|([A-G])([b#s]?)\}\}/g, (_, n, acc) => `${n}${acc === "b" ? "-flat" : acc === "#" || acc === "s" ? "-sharp" : ""} major`)
+    const cleaned = m[1]
+      .replace(
+        /\{\{Key\|([a-g])([b#s]?)\}\}/g,
+        (_, n, acc) =>
+          `${n.toUpperCase()}${acc === "b" ? "-flat" : acc === "#" || acc === "s" ? "-sharp" : ""} minor`
+      )
+      .replace(
+        /\{\{Key\|([A-G])([b#s]?)\}\}/g,
+        (_, n, acc) =>
+          `${n}${acc === "b" ? "-flat" : acc === "#" || acc === "s" ? "-sharp" : ""} major`
+      )
       .replace(/\[\[([^\]|]+\|)?([^\]]+)\]\]/g, "$2")
       .replace(/\{\{[^}]*\}\}/g, "")
       .replace(/\{\{.*/g, "")
       .replace(/<[^>]+>/g, "")
       .trim();
+    if (!cleaned || cleaned.startsWith("|") || cleaned.includes("=")) {
+      return null;
+    }
+    return cleaned;
   };
 
   const yearRaw = getField("Year/Date of Composition|Composition Year");
