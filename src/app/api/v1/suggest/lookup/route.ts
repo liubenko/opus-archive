@@ -233,6 +233,7 @@ async function lookupComposerCandidates(
         if (!res.ok) return null;
         return (await res.json()) as {
           title?: string;
+          wikibase_item?: string;
           description?: string;
           extract?: string;
           thumbnail?: { source?: string };
@@ -243,6 +244,51 @@ async function lookupComposerCandidates(
       }
     })
   );
+
+  // Batch-fetch exact birth (P569) and death (P570) years from Wikidata QIDs
+  const qids = wikiSummaries
+    .map((s) => s?.wikibase_item)
+    .filter((q): q is string => Boolean(q));
+  const wikidataYears = new Map<
+    string,
+    { birth: number | null; death: number | null }
+  >();
+  if (qids.length > 0) {
+    try {
+      const wdRes = await fetch(
+        `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${qids.join(
+          "|"
+        )}&props=claims&format=json`,
+        { headers: { "User-Agent": UA } }
+      );
+      if (wdRes.ok) {
+        const wdJson = (await wdRes.json()) as {
+          entities?: Record<
+            string,
+            {
+              claims?: {
+                P569?: { mainsnak?: { datavalue?: { value?: { time?: string } } } }[];
+                P570?: { mainsnak?: { datavalue?: { value?: { time?: string } } } }[];
+              };
+            }
+          >;
+        };
+        for (const qid of qids) {
+          const claims = wdJson.entities?.[qid]?.claims;
+          const bStr = claims?.P569?.[0]?.mainsnak?.datavalue?.value?.time || "";
+          const dStr = claims?.P570?.[0]?.mainsnak?.datavalue?.value?.time || "";
+          const bMatch = bStr.match(/([12]\d{3})/);
+          const dMatch = dStr.match(/([12]\d{3})/);
+          wikidataYears.set(qid, {
+            birth: bMatch ? Number(bMatch[1]) : null,
+            death: dMatch ? Number(dMatch[1]) : null,
+          });
+        }
+      }
+    } catch {
+      // Ignore Wikidata fallback error
+    }
+  }
 
   const candidates: EnrichedComposerCandidate[] = [];
 
@@ -264,6 +310,9 @@ async function lookupComposerCandidates(
       .trim();
     const { birthYear, deathYear, nationality } =
       extractYearsAndNationality(combined);
+    const wd = sum.wikibase_item
+      ? wikidataYears.get(sum.wikibase_item)
+      : undefined;
 
     const ooMatch = openOpusComposers.find((c) =>
       (c.complete_name || c.name || "")
@@ -272,8 +321,11 @@ async function lookupComposerCandidates(
     );
 
     const finalBirth =
-      birthYear || (ooMatch?.birth ? Number(ooMatch.birth.slice(0, 4)) : null);
+      wd?.birth ||
+      birthYear ||
+      (ooMatch?.birth ? Number(ooMatch.birth.slice(0, 4)) : null);
     const finalDeath =
+      wd?.death ||
       deathYear ||
       (ooMatch?.death && ooMatch.death !== "null"
         ? Number(ooMatch.death.slice(0, 4))
@@ -363,25 +415,30 @@ async function lookupWorkCandidates(
   composerQuery: string
 ): Promise<EnrichedWorkCandidate[]> {
   const combinedSearch = [workQuery, composerQuery].filter(Boolean).join(" ");
+  const composerLast = composerQuery.trim().split(/\s+/).pop() || "";
+
+  type ImslpSearchJson = {
+    query?: { search?: { title: string }[] };
+  };
 
   const [mbRes, imslpRes, wikiRes, composerCands] = await Promise.all([
     fetch(
       `https://musicbrainz.org/ws/2/work/?query=${encodeURIComponent(
-        composerQuery
-          ? `work:"${workQuery}" AND artist:"${composerQuery}"`
-          : `work:"${workQuery}"`
+        composerLast
+          ? `${workQuery} AND artist:${composerLast}`
+          : workQuery
       )}&fmt=json&limit=4`,
       { headers: { "User-Agent": UA } }
     )
       .then((r) => (r.ok ? (r.json() as Promise<MusicBrainzWorkSearchJson>) : null))
       .catch(() => null),
     fetch(
-      `https://imslp.org/api.php?action=opensearch&search=${encodeURIComponent(
+      `https://imslp.org/api.php?action=query&list=search&srsearch=${encodeURIComponent(
         combinedSearch
-      )}&namespace=0&limit=4&format=json`,
+      )}&srnamespace=0&srlimit=4&format=json`,
       { headers: { "User-Agent": UA } }
     )
-      .then((r) => (r.ok ? (r.json() as Promise<OpenSearchTuple>) : null))
+      .then((r) => (r.ok ? (r.json() as Promise<ImslpSearchJson>) : null))
       .catch(() => null),
     fetch(
       `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(
@@ -403,9 +460,12 @@ async function lookupWorkCandidates(
   let imslpTopUrl: string | null = null;
   let imslpParsed: ReturnType<typeof parseImslpWorkInfo> | null = null;
 
-  if (Array.isArray(imslpRes?.[1]) && imslpRes[1].length > 0) {
-    imslpTopTitle = imslpRes[1][0] as string;
-    imslpTopUrl = (imslpRes[3]?.[0] as string) || null;
+  const imslpHits = imslpRes?.query?.search || [];
+  if (imslpHits.length > 0) {
+    imslpTopTitle = imslpHits[0].title;
+    imslpTopUrl = `https://imslp.org/wiki/${encodeURIComponent(
+      imslpTopTitle.replace(/ /g, "_")
+    )}`;
     if (imslpTopTitle) {
       try {
         const wtRes = await fetch(
