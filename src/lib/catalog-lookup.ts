@@ -874,28 +874,40 @@ export async function lookupComposerCandidates(
   return candidates.slice(0, 4);
 }
 
+export interface ParsedImslpMovement {
+  movement_number: number;
+  title: string;
+  tempo_marking: string | null;
+}
+
+function cleanWikiInline(raw: string): string {
+  return raw
+    .replace(
+      /\{\{Key\|([a-g])([b#s]?)\}\}/g,
+      (_, n, acc) =>
+        `${n.toUpperCase()}${acc === "b" ? "-flat" : acc === "#" || acc === "s" ? "-sharp" : ""} minor`
+    )
+    .replace(
+      /\{\{Key\|([A-G])([b#s]?)\}\}/g,
+      (_, n, acc) =>
+        `${n}${acc === "b" ? "-flat" : acc === "#" || acc === "s" ? "-sharp" : ""} major`
+    )
+    .replace(/\[\[([^\]|]+\|)?([^\]]+)\]\]/g, "$2")
+    .replace(/\{\{[^}]*\}\}/g, "")
+    .replace(/\{\{.*/g, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/''+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function parseImslpWorkInfo(wikitext: string) {
   const getField = (pattern: string) => {
     const m = wikitext.match(
       new RegExp(`^\\|[ \\t]*(?:${pattern})[ \\t]*=[ \\t]*([^\\r\\n]*)`, "im")
     );
     if (!m) return null;
-    const cleaned = m[1]
-      .replace(
-        /\{\{Key\|([a-g])([b#s]?)\}\}/g,
-        (_, n, acc) =>
-          `${n.toUpperCase()}${acc === "b" ? "-flat" : acc === "#" || acc === "s" ? "-sharp" : ""} minor`
-      )
-      .replace(
-        /\{\{Key\|([A-G])([b#s]?)\}\}/g,
-        (_, n, acc) =>
-          `${n}${acc === "b" ? "-flat" : acc === "#" || acc === "s" ? "-sharp" : ""} major`
-      )
-      .replace(/\[\[([^\]|]+\|)?([^\]]+)\]\]/g, "$2")
-      .replace(/\{\{[^}]*\}\}/g, "")
-      .replace(/\{\{.*/g, "")
-      .replace(/<[^>]+>/g, "")
-      .trim();
+    const cleaned = cleanWikiInline(m[1]);
     if (!cleaned || cleaned.startsWith("|") || cleaned.includes("=")) {
       return null;
     }
@@ -908,13 +920,85 @@ export function parseImslpWorkInfo(wikitext: string) {
   const instRaw = getField("Instrumentation");
   const durRaw = getField("Average Duration");
   const durMatch = durRaw?.match(/(\d+)\s*(?:min|m\b)/i);
+  const catalogRaw = getField("Opus/Catalogue Number|Opus/Catalogue");
+  const movHeaderRaw = getField("Movements Header|Movements/Sections");
+  const movHeaderCountMatch = movHeaderRaw?.match(/\b(\d{1,2})\s+movements?\b/i);
+
+  // Extract multi-line |Movements/Sections= block
+  const movements: ParsedImslpMovement[] = [];
+  const movBlockMatch = wikitext.match(
+    /^\|[ \t]*Movements\/Sections[ \t]*=([\s\S]*?)(?=^\||^\}\})/im
+  );
+  if (movBlockMatch) {
+    const lines = movBlockMatch[1].split(/\r?\n/);
+    let num = 0;
+    for (const rawLine of lines) {
+      const trimmed = rawLine.trim();
+      if (!trimmed) continue;
+      // Match `# Allegro moderato` or `* I. Allegro` or `1. Allegro`
+      const itemMatch = trimmed.match(/^(?:#+|\*+|\d+\.)\s+(.+)$/);
+      if (!itemMatch) continue;
+      const cleaned = cleanWikiInline(itemMatch[1])
+        .replace(/^(?:[IVXLCDM]+\.|\d+\.)\s*/, "")
+        .trim();
+      if (!cleaned || cleaned.length < 2 || cleaned.length > 140) continue;
+      if (/^(?:movements?|sections?|act|part|book)\s*\d*$/i.test(cleaned)) continue;
+      num++;
+      if (num > 30) break;
+      movements.push({
+        movement_number: num,
+        title: cleaned,
+        tempo_marking: cleaned.split(/[—–:(]/)[0].trim().slice(0, 60) || null,
+      });
+    }
+  }
+
+  const movementsCount =
+    movements.length > 0
+      ? movements.length
+      : movHeaderCountMatch
+        ? Number(movHeaderCountMatch[1])
+        : null;
 
   return {
     year_composed: yearMatch ? Number(yearMatch[1]) : null,
     key_signature: keyRaw ? keyRaw.slice(0, 60) : null,
     instrumentation: instRaw ? instRaw.slice(0, 180) : null,
     duration_minutes: durMatch ? Number(durMatch[1]) : null,
+    catalog_raw: catalogRaw ? catalogRaw.slice(0, 60) : null,
+    movements_count: movementsCount,
+    movements,
   };
+}
+
+/**
+ * Fetches & parses the exact IMSLP `{{Work Info}}` wikitext from a known IMSLP URL.
+ */
+export async function fetchImslpWorkInfoByUrl(imslpUrl: string) {
+  try {
+    const u = new URL(imslpUrl);
+    if (!u.hostname.includes("imslp.org")) return null;
+    const rawPage = decodeURIComponent(
+      u.pathname.replace(/^\/wiki\//i, "").replace(/_/g, " ")
+    ).trim();
+    if (!rawPage || rawPage.startsWith("Category:")) return null;
+
+    const wtRes = await fetch(
+      `https://imslp.org/api.php?action=parse&page=${encodeURIComponent(
+        rawPage
+      )}&prop=wikitext&format=json`,
+      { headers: { "User-Agent": UA } }
+    );
+    if (!wtRes.ok) return null;
+    const wtJson = (await wtRes.json()) as {
+      parse?: { wikitext?: { "*"?: string } };
+    };
+    const wt = wtJson.parse?.wikitext?.["*"] || "";
+    if (!wt) return null;
+    return parseImslpWorkInfo(wt);
+  } catch {
+    return null;
+  }
 }
 
 function stripCatalogSuffix(title: string): string {

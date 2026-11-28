@@ -24,6 +24,7 @@ import { ComposerAvatar } from "@/components/ComposerAvatar";
 import { WorkListeningPanel } from "@/components/WorkListeningPanel";
 import { WorkImslpEditions } from "@/components/WorkImslpEditions";
 import { WorkWorkspaceActions } from "@/components/WorkWorkspaceActions";
+import { AdminWorkEnrichButton } from "@/components/AdminWorkEnrichButton";
 
 export const dynamic = "force-dynamic";
 
@@ -332,6 +333,20 @@ export default async function WorkDetailPage({ params }: WorkPageProps) {
             <WorkWorkspaceActions
               workId={work.id}
               defaultDuration={work.duration_minutes}
+            />
+
+            <AdminWorkEnrichButton
+              workId={work.id}
+              missingFields={[
+                !work.year_composed ? "Year" : null,
+                !work.key_signature ? "Key" : null,
+                !work.duration_minutes ? "Duration" : null,
+                !effectiveMovementsCount ? "Movements" : null,
+                !work.catalog_display ? "Catalog" : null,
+                !work.instrumentation ? "Instrumentation" : null,
+                !work.description ? "Program Note" : null,
+                !work.imslp_url ? "IMSLP URL" : null,
+              ].filter((x): x is string => Boolean(x))}
             />
           </div>
         </div>
