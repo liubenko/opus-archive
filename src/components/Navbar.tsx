@@ -19,11 +19,11 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-40 border-b border-stone-200/80 dark:border-stone-800/80 bg-[#faf8f4]/90 dark:bg-[#11100e]/90 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="w-9 h-9 rounded-lg bg-[#1a1816] dark:bg-[#d4af6a] text-[#e8d5b0] dark:text-[#11100e] flex items-center justify-center shadow-sm group-hover:opacity-90 transition-opacity">
-            <Music2 className="w-4 h-4" />
+        <Link href="/" className="flex items-center gap-2.5 group shrink-0">
+          <div className="w-9 h-9 shrink-0 rounded-lg bg-[#1a1816] dark:bg-[#d4af6a] text-[#e8d5b0] dark:text-[#11100e] flex items-center justify-center shadow-sm group-hover:opacity-90 transition-opacity">
+            <Music2 className="w-4 h-4 shrink-0" />
           </div>
-          <div className="leading-tight">
+          <div className="leading-tight whitespace-nowrap">
             <span className="font-serif text-lg font-semibold tracking-tight text-[#1a1816] dark:text-[#f3efe6] block">
               Opus Archive
             </span>
@@ -33,7 +33,7 @@ export function Navbar() {
           </div>
         </Link>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <nav className="flex items-center gap-1 sm:gap-1.5">
             {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
               const isActive =
@@ -45,14 +45,15 @@ export function Navbar() {
                 <Link
                   key={href}
                   href={href}
-                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  title={label}
+                  className={`inline-flex items-center gap-1.5 px-2.5 lg:px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                     isActive
                       ? "bg-[#1a1816] dark:bg-[#f3efe6] text-[#faf8f4] dark:text-[#11100e] shadow-xs"
                       : "text-stone-600 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white hover:bg-stone-200/60 dark:hover:bg-stone-800/70"
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
-                  <span className="hidden sm:inline">{label}</span>
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="hidden lg:inline">{label}</span>
                 </Link>
               );
             })}
