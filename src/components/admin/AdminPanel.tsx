@@ -168,6 +168,8 @@ export function AdminPanel() {
       missingDescRes,
       missingDurRes,
       pendingSugRes,
+      pendingEntRes,
+      pendingCpRes,
     ] = await Promise.all([
       supabase.from("composers").select("*").order("sort_name", { ascending: true }),
       supabase.from("composer_relations").select("*").order("id", { ascending: false }),
@@ -193,6 +195,14 @@ export function AdminPanel() {
         .from("catalog_suggestions")
         .select("*", { count: "exact", head: true })
         .eq("status", "pending"),
+      supabase
+        .from("stage_entity_proposals")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pending"),
+      supabase
+        .from("concert_event_proposals")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pending"),
     ]);
 
     const compList = compListRes.data ?? [];
@@ -205,7 +215,10 @@ export function AdminPanel() {
       composers: compList.length,
       works: worksCountRes.count ?? 0,
       relations: relList.length,
-      pendingSuggestions: pendingSugRes.count ?? 0,
+      pendingSuggestions:
+        (pendingSugRes.count ?? 0) +
+        (pendingEntRes.count ?? 0) +
+        (pendingCpRes.count ?? 0),
       missingAvatars: missingAvatarsRes.count ?? 0,
       missingYears: missingYearsRes.count ?? 0,
       missingDescriptions: missingDescRes.count ?? 0,
