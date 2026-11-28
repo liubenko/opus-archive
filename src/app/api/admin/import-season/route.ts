@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import {
   extractEventsMultiTier,
+  fetchKyivPhilharmonicEvents,
   parseNyPhilPrograms,
   splitComposerAndWork,
 } from "../../../../../scripts/lib/season-parser.mjs";
@@ -234,6 +235,15 @@ export async function POST(request: Request) {
             -12
           ) as IncomingStageEvent[];
         }
+      } else if (v.feed_type === "kyiv_phil_wp") {
+        const kpEvents = (await fetchKyivPhilharmonicEvents(12)) as IncomingStageEvent[];
+        incoming = kpEvents.map((ev) => ({
+          ...ev,
+          venueId: v.id,
+          venueName: v.short_name || v.name,
+          city: v.city,
+          country: v.country,
+        }));
       } else if (v.calendar_url) {
         const html = await fetchUrlTextSafe(v.calendar_url, 6500);
         if (html) {
@@ -315,6 +325,21 @@ export async function POST(request: Request) {
 
   // 5. Custom URL (Venue Page, Artist Tour URL, or .ics) -> Staged in `/admin`
   if (body.url) {
+    if (/philarmonia\.com\.ua/i.test(body.url)) {
+      const kpEvents = (await fetchKyivPhilharmonicEvents(12)) as IncomingStageEvent[];
+      const summary = await stageIncomingEvents(client, kpEvents, {
+        sourceKind: "venue_sync",
+        sourceLabel: "Kyiv Philharmonic (philarmonia.com.ua)",
+        autoPublish: false,
+      });
+      return NextResponse.json({
+        mode: "url",
+        tierUsed: "kyiv_phil_wp",
+        extractedRawEvents: kpEvents.length,
+        ...summary,
+      });
+    }
+
     const text = await fetchUrlTextSafe(body.url, 9000);
     if (!text) {
       return NextResponse.json(

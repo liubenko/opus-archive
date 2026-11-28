@@ -1214,8 +1214,9 @@ export const TOP_100_VENUES = [
     capacity: 620,
     opened_year: 1882,
     architect_or_acoustics: "Vladimir Nikolaev",
-    website_url: "https://filarmonia.com.ua",
-    calendar_url: "https://filarmonia.com.ua/en/afisha/",
+    website_url: "https://philarmonia.com.ua",
+    calendar_url: "https://philarmonia.com.ua/en/all-events/",
+    feed_type: "kyiv_phil_wp",
     wiki_title: "National_Philharmonic_of_Ukraine",
   },
   {

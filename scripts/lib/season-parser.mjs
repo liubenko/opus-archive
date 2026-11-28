@@ -91,7 +91,7 @@ const MONTHS_MAP = {
   november: "11",
   dec: "12",
   december: "12",
-  // German / French / Spanish common abbreviations on European hall calendars
+  // German / French / Ukrainian months on European hall calendars
   mär: "03",
   mai: "05",
   okt: "10",
@@ -102,6 +102,18 @@ const MONTHS_MAP = {
   juil: "07",
   août: "08",
   déc: "12",
+  січня: "01",
+  лютого: "02",
+  березня: "03",
+  квітня: "04",
+  травня: "05",
+  червня: "06",
+  липня: "07",
+  серпня: "08",
+  вересня: "09",
+  жовтня: "10",
+  листопада: "11",
+  грудня: "12",
 };
 
 /**
@@ -976,4 +988,158 @@ export function compareConcertAgainstExisting(
     confidence: 0,
     summary: null,
   };
+}
+
+const UK_INSTRUMENT_MAP = [
+  [/диригент|conductor/i, { role: "conductor", instrument: "Conductor" }],
+  [/оркестр|orchestra/i, { role: "orchestra", instrument: "Symphony Orchestra" }],
+  [/хор|choir|квартет|quartet|ансамбль|ensemble|тріо|trio/i, { role: "ensemble", instrument: "Ensemble" }],
+  [/фортепіано|рояль|piano/i, { role: "soloist", instrument: "Piano" }],
+  [/скрипк|violin/i, { role: "soloist", instrument: "Violin" }],
+  [/віолончел|cello/i, { role: "soloist", instrument: "Cello" }],
+  [/альт\b|viola/i, { role: "soloist", instrument: "Viola" }],
+  [/флейт|flute/i, { role: "soloist", instrument: "Flute" }],
+  [/гітар|guitar/i, { role: "soloist", instrument: "Guitar" }],
+  [/орган|organ/i, { role: "soloist", instrument: "Organ" }],
+  [/бандур|bandura/i, { role: "soloist", instrument: "Bandura" }],
+  [/сопрано|soprano/i, { role: "soloist", instrument: "Soprano" }],
+  [/мецо-сопрано|mezzo/i, { role: "soloist", instrument: "Mezzo-Soprano" }],
+  [/тенор|tenor/i, { role: "soloist", instrument: "Tenor" }],
+  [/баритон|baritone/i, { role: "soloist", instrument: "Baritone" }],
+  [/бас\b|bass/i, { role: "soloist", instrument: "Bass" }],
+];
+
+function decodeHtmlEntities(str) {
+  return String(str || "")
+    .replace(/&#038;|&amp;/g, "&")
+    .replace(/&#8217;|&#039;|&apos;/g, "'")
+    .replace(/&#8220;|&#8221;|&quot;/g, '"')
+    .replace(/&#8211;|&ndash;/g, "–")
+    .replace(/&#8212;|&mdash;/g, "—")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Dedicated adapter for National Philharmonic of Ukraine (philarmonia.com.ua)
+ * via its open WordPress REST API (`/wp-json/wp/v2/product`) + concert detail pages.
+ */
+export async function fetchKyivPhilharmonicEvents(limit = 12) {
+  const UA =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36";
+  const res = await fetch(
+    `https://philarmonia.com.ua/wp-json/wp/v2/product?per_page=${Math.min(limit, 20)}&orderby=date&order=desc`,
+    { headers: { "User-Agent": UA } }
+  );
+  if (!res.ok) return [];
+  const items = await res.json();
+  if (!Array.isArray(items)) return [];
+
+  const now = new Date();
+  const currentYear = now.getUTCFullYear();
+  const currentMonth = now.getUTCMonth() + 1;
+  const out = [];
+
+  for (const item of items.slice(0, limit)) {
+    if (!item.link || !item.title?.rendered) continue;
+    try {
+      const pRes = await fetch(item.link, { headers: { "User-Agent": UA } });
+      if (!pRes.ok) continue;
+      const html = await pRes.text();
+
+      const dateRaw =
+        html
+          .match(/class=["'][^"']*product_date[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)?.[1]
+          ?.replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim() || "";
+      const dm = dateRaw.match(/(\d{1,2})\s+([A-Za-zА-Яа-яІіЇїЄєҐґ]+)/);
+      if (!dm) continue;
+      const moStr = MONTHS_MAP[dm[2].toLowerCase()];
+      if (!moStr) continue;
+      const dayNum = Number(dm[1]);
+      const moNum = Number(moStr);
+      // Roll over into next year if concert month is earlier than current month (e.g. Jan/Feb listed in Nov/Dec)
+      const year = moNum < currentMonth - 1 ? currentYear + 1 : currentYear;
+
+      const timeMatch = html.match(
+        /<div[^>]*class=["']pr_info_ttl["'][^>]*>\s*(?:Час|Time)\s*<\/div>\s*<div[^>]*>\s*(\d{1,2}:\d{2})/i
+      );
+      const timeStr = timeMatch ? timeMatch[1] : "18:00";
+      const startsAt = `${year}-${moStr}-${String(dayNum).padStart(2, "0")}T${timeStr}:00+02:00`;
+
+      const ticketUrl =
+        html.match(
+          /href=["'](https?:\/\/widget\.kontramarka\.ua\/[^"']+)["']/i
+        )?.[1] || item.link;
+
+      // Parse performers (`<div class="vikonavec ..."><div class="vikonavec_name">Name</div> role </div>`)
+      const performers = [];
+      for (const pm of html.matchAll(
+        /<div[^>]*class=["'][^"']*vikonavec\b[^"']*["'][^>]*>([\s\S]{5,400}?)<\/div>\s*(?=<div[^>]*class=["'][^"']*vikonavec|<\/div>)/gi
+      )) {
+        const block = pm[1];
+        const nameRaw = block.match(
+          /<div[^>]*class=["']vikonavec_name["'][^>]*>([\s\S]*?)<\/div>/i
+        )?.[1];
+        const name = decodeHtmlEntities(stripTags(nameRaw || ""));
+        const roleRaw = decodeHtmlEntities(
+          stripTags(block.replace(/<div[^>]*class=["']vikonavec_name["'][^>]*>[\s\S]*?<\/div>/i, ""))
+        );
+        if (!name || /ведуч/i.test(roleRaw)) continue; // Skip MC/presenter
+
+        let mapped = { role: inferRoleFromNameOrJob(name, roleRaw), instrument: roleRaw || null };
+        for (const [rx, val] of UK_INSTRUMENT_MAP) {
+          if (rx.test(`${name} ${roleRaw}`)) {
+            mapped = val;
+            break;
+          }
+        }
+        performers.push({
+          name,
+          role: mapped.role,
+          instrument: mapped.instrument,
+        });
+      }
+
+      // Parse works from `#pr_program` if populated
+      const works = [];
+      const progInner =
+        html.match(/id=["']pr_program["'][^>]*>([\s\S]{0,4000}?)<\/div>/i)?.[1] ||
+        "";
+      if (progInner.trim()) {
+        const progLines = progInner
+          .split(/<(?:br|\/p|\/li|\/div)>/i)
+          .map((l) => decodeHtmlEntities(stripTags(l)))
+          .filter((l) => l.length > 6 && l.length < 150);
+        for (const line of progLines) {
+          if (/відділ|антракт|програма|part\s+[i12]/i.test(line)) continue;
+          const sp = splitComposerAndWork(line);
+          if (sp && sp.composerName !== "Unknown Composer") {
+            works.push(sp);
+          }
+        }
+      }
+
+      out.push({
+        externalKey: `kyivphil:${item.id}:${year}-${moStr}-${String(dayNum).padStart(2, "0")}`,
+        title: decodeHtmlEntities(stripTags(item.title.rendered)),
+        subtitle: "National Philharmonic of Ukraine · Lysenko Column Hall",
+        startsAt,
+        season: "2026/27",
+        venueName: "National Philharmonic of Ukraine (Lysenko Column Hall)",
+        city: "Kyiv",
+        country: "Ukraine",
+        sourceUrl: item.link,
+        ticketUrl,
+        performers,
+        works,
+      });
+    } catch {
+      // Skip individual failed product page
+    }
+  }
+
+  return out;
 }
