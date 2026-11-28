@@ -36,6 +36,8 @@ function cleanWikiValue(raw: string): string {
     )
     // Convert {{Mss|17|27|31}} -> "Manuscript"
     .replace(/\{\{Mss\|[^}]*\}\}/gi, "Historical Manuscript")
+    .replace(/\[mailto:[^\]]+\]/gi, " ")
+    .replace(/\[https?:\/\/[^\s\]]+\s+([^\]]+)\]/gi, "$1")
     .replace(/<[^>]+>/g, " ")
     .replace(/\{\{[^}]+\}\}/g, " ")
     .replace(/\[\[(?:[^|\]]+\|)?([^\]]+)\]\]/g, "$1")
@@ -85,10 +87,15 @@ function parseImslpEditions(wikitext: string, pageUrl: string): ImslpEdition[] {
 
   for (const body of blocks) {
     const get = (key: string) => {
-      const m = body.match(new RegExp(`^\\|\\s*${key}\\s*=\\s*(.+)$`, "im"));
+      const m = body.match(
+        new RegExp(`^\\|[ \\t]*${key}[ \\t]*=[ \\t]*([^\\r\\n]*)`, "im")
+      );
       if (!m) return null;
       const cleaned = cleanWikiValue(m[1]);
-      return cleaned || null;
+      if (!cleaned || cleaned.startsWith("|") || cleaned.includes("=")) {
+        return null;
+      }
+      return cleaned;
     };
 
     const fileName = get("File Name 1") || get("File Name");
@@ -107,14 +114,27 @@ function parseImslpEditions(wikitext: string, pageUrl: string): ImslpEdition[] {
 
     if (!fileName && !publisher && !editor) continue;
 
+    // Link directly to the specific IMSLP file page (or Special:ImagefromIndex/<id>) instead of the generic work page
+    let directScoreUrl = pageUrl;
+    if (fileName) {
+      directScoreUrl = `https://imslp.org/wiki/File:${encodeURIComponent(
+        fileName.replace(/ /g, "_")
+      )}`;
+    } else if (imslpId) {
+      const digits = imslpId.replace(/\D/g, "");
+      if (digits) {
+        directScoreUrl = `https://imslp.org/wiki/Special:ImagefromIndex/${digits}`;
+      }
+    }
+
     editions.push({
       description: [desc, imageType].filter(Boolean).join(" · ").slice(0, 120),
       publisher: publisher ? publisher.slice(0, 140) : null,
       editor: editor ? editor.slice(0, 100) : null,
       copyright: copyright ? copyright.slice(0, 80) : null,
-      fileName: fileName ? fileName.slice(0, 120) : null,
+      fileName: fileName ? fileName.slice(0, 140) : null,
       imslpId,
-      url: imslpId ? `${pageUrl}#${imslpId}` : pageUrl,
+      url: directScoreUrl,
     });
   }
 
