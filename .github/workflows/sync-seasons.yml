@@ -1,16 +1,20 @@
-name: Sync World Stage Seasons (Venues, Orchestras & Soloists)
+name: Sync World Stage Seasons (100 Venues, Orchestras & Artist Tours)
 
 on:
   # Runs automatically once a week on Mondays at 04:30 UTC
   schedule:
     - cron: "30 4 * * 1"
-  # On-demand manual trigger with optional external URL
+  # On-demand manual trigger with optional external URL or batch size
   workflow_dispatch:
     inputs:
       custom_url:
-        description: "Optional concert page or .ics URL to ingest"
+        description: "Optional venue calendar, artist tour page, or .ics URL to crawl & stage"
         required: false
         default: ""
+      crawl_batch:
+        description: "Number of due venues & featured artist tour pages to crawl (default 20)"
+        required: false
+        default: "20"
 
 jobs:
   sync-seasons:
@@ -28,14 +32,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Sync orchestra, venue & soloist seasons
+      - name: Install Playwright Chromium for Tier-3 JS-rendered calendars
+        run: npx --yes playwright@latest install --with-deps chromium
+
+      - name: Crawl venue seasons & artist tour calendars into /admin staging queue
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          ENABLE_PLAYWRIGHT: "1"
           CUSTOM_SEASON_URL: ${{ github.event.inputs.custom_url }}
+          CRAWL_BATCH: ${{ github.event.inputs.crawl_batch || '20' }}
         run: |
           if [ -n "$CUSTOM_SEASON_URL" ]; then
-            node scripts/sync-seasons.mjs "--url=$CUSTOM_SEASON_URL"
+            node scripts/sync-seasons.mjs "--url=$CUSTOM_SEASON_URL" --playwright
           else
-            node scripts/sync-seasons.mjs
+            node scripts/sync-seasons.mjs "--crawl-batch=$CRAWL_BATCH" --playwright
           fi

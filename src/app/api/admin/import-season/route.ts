@@ -2,25 +2,38 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import {
-  buildComposerMatcher,
-  buildWorkMatcher,
-  extractCatalog,
-  normalizeText,
-  slugify,
-} from "../../../../../scripts/lib/dedup.mjs";
-import {
-  buildSuggestionMetadata,
-  parseIcsCalendar,
-  parseMusicEventsFromHtml,
+  extractEventsMultiTier,
   parseNyPhilPrograms,
   splitComposerAndWork,
 } from "../../../../../scripts/lib/season-parser.mjs";
-import { lookupWorkCandidates } from "@/lib/catalog-lookup";
+import {
+  resolvePerformerTourUrl,
+  stageIncomingEvents,
+  type IncomingStageEvent,
+} from "@/lib/stage-staging";
 
 export const dynamic = "force-dynamic";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
+const UA =
+  "Mozilla/5.0 (compatible; OpusArchiveSeasonSync/2.0; +https://github.com/liubenko/opus-archive)";
+
+async function fetchUrlTextSafe(url: string, timeoutMs = 8000): Promise<string | null> {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    const res = await fetch(url, {
+      headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: Request) {
   const authHeader = request.headers.get("Authorization");
@@ -49,10 +62,12 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json().catch(() => ({}))) as {
-    mode?: "url" | "nyphil_live" | "manual";
+    mode?: "url" | "nyphil_live" | "artist_tour" | "venue_batch" | "manual";
     url?: string;
     defaultVenueId?: number;
     defaultPerformerId?: number;
+    performerId?: number;
+    batchSize?: number;
     manualEvent?: {
       title: string;
       startsAt: string;
@@ -63,72 +78,7 @@ export async function POST(request: Request) {
     };
   };
 
-  // Load venues, performers, composers & works
-  const [venuesRes, performersRes, composersRes] = await Promise.all([
-    client.from("venues").select("*"),
-    client.from("performers").select("*"),
-    client
-      .from("composers")
-      .select("id, name, full_name, sort_name, slug, birth_year, death_year"),
-  ]);
-
-  const venues = venuesRes.data ?? [];
-  const performers = performersRes.data ?? [];
-  const composers = composersRes.data ?? [];
-
-  // Paginate works cleanly
-  const allWorks: {
-    id: number;
-    composer_id: number;
-    title: string;
-    slug: string | null;
-    catalog_system: string | null;
-    catalog_number: string | null;
-  }[] = [];
-  let from = 0;
-  while (true) {
-    const { data } = await client
-      .from("works")
-      .select("id, composer_id, title, slug, catalog_system, catalog_number")
-      .order("id", { ascending: true })
-      .range(from, from + 999);
-    if (!data || data.length === 0) break;
-    allWorks.push(...data);
-    if (data.length < 1000) break;
-    from += 1000;
-  }
-
-  const composerMatcher = buildComposerMatcher(composers);
-  const worksByComp = new Map<number, typeof allWorks>();
-  for (const w of allWorks) {
-    const arr = worksByComp.get(w.composer_id) ?? [];
-    arr.push(w);
-    worksByComp.set(w.composer_id, arr);
-  }
-  const workMatchers = new Map<
-    number,
-    ReturnType<typeof buildWorkMatcher>
-  >();
-  for (const [cid, list] of worksByComp.entries()) {
-    workMatchers.set(cid, buildWorkMatcher(list));
-  }
-
-  type NormalizedIncoming = {
-    externalKey?: string;
-    title: string;
-    subtitle?: string | null;
-    startsAt: string;
-    venueId?: number;
-    venueName?: string | null;
-    sourceUrl?: string | null;
-    ticketUrl?: string | null;
-    performerIds?: number[];
-    performers?: { name: string; role: string; instrument?: string | null }[];
-    works: { composerName: string; workTitle: string }[];
-  };
-
-  const incoming: NormalizedIncoming[] = [];
-
+  // 1. Live NY Philharmonic Open Data Sync -> Staged in `/admin` with duplicate detection!
   if (body.mode === "nyphil_live") {
     const res = await fetch(
       "https://raw.githubusercontent.com/nyphilarchive/PerformanceHistory/main/Programs/json/2024-25_TO_NOW.json"
@@ -140,9 +90,194 @@ export async function POST(request: Request) {
       );
     }
     const json = await res.json();
-    const parsed = parseNyPhilPrograms(json, "2026-10-15").slice(-14);
-    incoming.push(...parsed);
-  } else if (body.mode === "manual" && body.manualEvent) {
+    const parsed = parseNyPhilPrograms(json, "2026-10-15").slice(
+      -18
+    ) as IncomingStageEvent[];
+
+    const summary = await stageIncomingEvents(client, parsed, {
+      sourceKind: "venue_sync",
+      sourceLabel: "NY Philharmonic Open Data",
+      autoPublish: false,
+    });
+
+    return NextResponse.json({ mode: "nyphil_live", ...summary });
+  }
+
+  // 2. Crawl an Artist / Orchestra's Official Tour Website -> Propose Tour Dates & Merge Diffs in `/admin`!
+  if (body.mode === "artist_tour" && body.performerId) {
+    const { data: perf } = await client
+      .from("performers")
+      .select("*")
+      .eq("id", body.performerId)
+      .maybeSingle();
+
+    if (!perf) {
+      return NextResponse.json(
+        { error: "Performer not found." },
+        { status: 404 }
+      );
+    }
+
+    const tourUrl = await resolvePerformerTourUrl(perf);
+    if (!tourUrl) {
+      return NextResponse.json(
+        {
+          error: `No website or tour calendar URL on file for ${perf.name}.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    if (tourUrl !== perf.calendar_url) {
+      await client
+        .from("performers")
+        .update({ calendar_url: tourUrl })
+        .eq("id", perf.id);
+    }
+
+    const html = await fetchUrlTextSafe(tourUrl, 9000);
+    if (!html) {
+      return NextResponse.json(
+        { error: `Could not reach ${tourUrl} (site may block bots or require JS — weekly Playwright job will retry).` },
+        { status: 502 }
+      );
+    }
+
+    const { events: rawEvents, tierUsed } = extractEventsMultiTier(
+      html,
+      tourUrl,
+      { defaultTitlePrefix: perf.name }
+    );
+
+    const incoming: IncomingStageEvent[] = rawEvents.map((ev) => {
+      const existingPerfs = ev.performers || [];
+      const hasPrimary = existingPerfs.some(
+        (p: { name?: string }) =>
+          (p.name || "").toLowerCase() === perf.name.toLowerCase()
+      );
+      return {
+        ...ev,
+        performers: hasPrimary
+          ? existingPerfs
+          : [
+              {
+                id: perf.id,
+                name: perf.name,
+                role: perf.performer_type,
+                instrument: perf.instrument_or_role,
+              },
+              ...existingPerfs,
+            ],
+      };
+    });
+
+    await client
+      .from("performers")
+      .update({
+        last_synced_at: new Date().toISOString(),
+        feed_type: tierUsed !== "none" ? tierUsed : perf.feed_type,
+      })
+      .eq("id", perf.id);
+
+    const summary = await stageIncomingEvents(client, incoming, {
+      sourceKind: "artist_tour",
+      sourceLabel: `${perf.name} Tour Calendar`,
+      autoPublish: false,
+    });
+
+    return NextResponse.json({
+      mode: "artist_tour",
+      performer: perf.name,
+      tourUrl,
+      tierUsed,
+      extractedRawEvents: incoming.length,
+      ...summary,
+    });
+  }
+
+  // 3. Batch-Crawl Due Venues from our Top 100 Global Halls Directory!
+  if (body.mode === "venue_batch") {
+    const batchSize = Math.min(Math.max(body.batchSize || 6, 1), 12);
+    const { data: dueVenues } = await client
+      .from("venues")
+      .select("*")
+      .not("calendar_url", "is", null)
+      .order("last_synced_at", { ascending: true, nullsFirst: true })
+      .limit(batchSize);
+
+    const targets = dueVenues ?? [];
+    const totals = {
+      crawledVenues: 0,
+      venuesWithEvents: 0,
+      stagedNewConcerts: 0,
+      stagedMergeCandidates: 0,
+      skippedDuplicates: 0,
+      proposedPerformers: 0,
+      proposedVenues: 0,
+      proposedWorks: 0,
+    };
+
+    const nowIso = new Date().toISOString();
+
+    for (const v of targets) {
+      totals.crawledVenues++;
+      let incoming: IncomingStageEvent[] = [];
+      let detectedFeed = v.feed_type;
+
+      if (v.feed_type === "nyphil_json") {
+        const r = await fetch(
+          "https://raw.githubusercontent.com/nyphilarchive/PerformanceHistory/main/Programs/json/2024-25_TO_NOW.json"
+        ).catch(() => null);
+        if (r?.ok) {
+          const j = await r.json();
+          incoming = parseNyPhilPrograms(j, "2026-10-15").slice(
+            -12
+          ) as IncomingStageEvent[];
+        }
+      } else if (v.calendar_url) {
+        const html = await fetchUrlTextSafe(v.calendar_url, 6500);
+        if (html) {
+          const { events, tierUsed } = extractEventsMultiTier(
+            html,
+            v.calendar_url
+          );
+          if (tierUsed !== "none") detectedFeed = tierUsed;
+          incoming = events.slice(0, 15).map((ev) => ({
+            ...ev,
+            venueId: v.id,
+            venueName: v.short_name || v.name,
+            city: v.city,
+            country: v.country,
+          }));
+        }
+      }
+
+      await client
+        .from("venues")
+        .update({ last_synced_at: nowIso, feed_type: detectedFeed })
+        .eq("id", v.id);
+
+      if (incoming.length > 0) {
+        totals.venuesWithEvents++;
+        const sub = await stageIncomingEvents(client, incoming, {
+          sourceKind: "venue_sync",
+          sourceLabel: `${v.short_name || v.name} (${v.city})`,
+          autoPublish: false,
+        });
+        totals.stagedNewConcerts += sub.stagedNewConcerts;
+        totals.stagedMergeCandidates += sub.stagedMergeCandidates;
+        totals.skippedDuplicates += sub.skippedDuplicates;
+        totals.proposedPerformers += sub.proposedPerformers;
+        totals.proposedVenues += sub.proposedVenues;
+        totals.proposedWorks += sub.proposedWorks;
+      }
+    }
+
+    return NextResponse.json({ mode: "venue_batch", ...totals });
+  }
+
+  // 4. Manual Admin Concert Form -> Direct Publish
+  if (body.mode === "manual" && body.manualEvent) {
     const me = body.manualEvent;
     const works = me.programText
       .split(/\r?\n/)
@@ -150,307 +285,110 @@ export async function POST(request: Request) {
       .filter(
         (x): x is { composerName: string; workTitle: string } => Boolean(x)
       );
-    incoming.push({
-      title: me.title,
-      startsAt: me.startsAt,
-      venueId: me.venueId,
-      performerIds: me.performerIds,
-      ticketUrl: me.ticketUrl || null,
-      sourceUrl: me.ticketUrl || null,
-      works,
-    });
-  } else if (body.url) {
-    const res = await fetch(body.url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (compatible; OpusArchiveSeasonSync/1.0; +https://github.com/liubenko/opus-archive)",
-      },
-    });
-    if (!res.ok) {
+
+    const summary = await stageIncomingEvents(
+      client,
+      [
+        {
+          title: me.title,
+          startsAt: me.startsAt,
+          venueId: me.venueId,
+          performers: (me.performerIds || []).map((id) => ({
+            id,
+            name: "",
+            role: "soloist",
+          })),
+          ticketUrl: me.ticketUrl || null,
+          sourceUrl: me.ticketUrl || null,
+          works,
+        },
+      ],
+      {
+        sourceKind: "manual",
+        sourceLabel: "Manual Admin Entry",
+        autoPublish: true,
+      }
+    );
+
+    return NextResponse.json({ mode: "manual", ...summary });
+  }
+
+  // 5. Custom URL (Venue Page, Artist Tour URL, or .ics) -> Staged in `/admin`
+  if (body.url) {
+    const text = await fetchUrlTextSafe(body.url, 9000);
+    if (!text) {
       return NextResponse.json(
-        { error: `Target URL returned HTTP ${res.status}` },
+        { error: "Target URL could not be fetched or timed out." },
         { status: 502 }
       );
     }
-    const text = await res.text();
-    const parsed =
-      body.url.endsWith(".ics") || text.includes("BEGIN:VCALENDAR")
-        ? parseIcsCalendar(text, body.url)
-        : parseMusicEventsFromHtml(text, body.url);
 
-    for (const p of parsed) {
-      incoming.push({
-        ...p,
-        works: (p.works || []).filter(
-          (x): x is { composerName: string; workTitle: string } => Boolean(x)
-        ),
-        venueId: body.defaultVenueId,
-        performerIds: body.defaultPerformerId ? [body.defaultPerformerId] : [],
-      });
+    let defaultPerf: {
+      id: number;
+      name: string;
+      performer_type: string;
+      instrument_or_role: string | null;
+    } | null = null;
+    if (body.defaultPerformerId) {
+      const { data } = await client
+        .from("performers")
+        .select("id, name, performer_type, instrument_or_role")
+        .eq("id", body.defaultPerformerId)
+        .maybeSingle();
+      defaultPerf = data;
     }
-  } else {
-    return NextResponse.json(
-      { error: "Provide url, manualEvent, or mode='nyphil_live'." },
-      { status: 400 }
+
+    const { events: parsed, tierUsed } = extractEventsMultiTier(
+      text,
+      body.url,
+      { defaultTitlePrefix: defaultPerf?.name || "" }
     );
+
+    const incoming: IncomingStageEvent[] = parsed.map((p) => ({
+      ...p,
+      venueId: body.defaultVenueId || undefined,
+      performers: [
+        ...(defaultPerf
+          ? [
+              {
+                id: defaultPerf.id,
+                name: defaultPerf.name,
+                role: defaultPerf.performer_type,
+                instrument: defaultPerf.instrument_or_role,
+              },
+            ]
+          : []),
+        ...(p.performers || []),
+      ],
+    }));
+
+    const hostLabel = (() => {
+      try {
+        return new URL(body.url).hostname.replace(/^www\./, "");
+      } catch {
+        return "Custom URL";
+      }
+    })();
+
+    const summary = await stageIncomingEvents(client, incoming, {
+      sourceKind: defaultPerf ? "artist_tour" : "url_import",
+      sourceLabel: defaultPerf ? `${defaultPerf.name} (${hostLabel})` : hostLabel,
+      autoPublish: false,
+    });
+
+    return NextResponse.json({
+      mode: "url",
+      tierUsed,
+      extractedRawEvents: incoming.length,
+      ...summary,
+    });
   }
 
-  let importedEvents = 0;
-  let matchedWorks = 0;
-  let queuedSuggestions = 0;
-  let enrichedSuggestions = 0;
-  const nowIso = new Date().toISOString();
-
-  for (const ev of incoming) {
-    let venue = ev.venueId
-      ? venues.find((v) => v.id === ev.venueId)
-      : undefined;
-    if (!venue && ev.venueName) {
-      const nv = normalizeText(ev.venueName);
-      venue = venues.find(
-        (v) =>
-          nv.includes(normalizeText(v.short_name || v.name)) ||
-          normalizeText(v.name).includes(nv)
-      );
-    }
-    if (!venue) continue;
-
-    const extKey =
-      ev.externalKey ||
-      `${venue.slug}:${String(ev.startsAt).slice(0, 10)}:${slugify(ev.title).slice(0, 40)}`;
-    const evSlug = `${String(ev.startsAt).slice(0, 10)}-${venue.slug}-${slugify(ev.title).slice(0, 48)}`;
-
-    const { data: savedEvent, error: evErr } = await client
-      .from("concert_events")
-      .upsert(
-        {
-          slug: evSlug,
-          external_key: extKey,
-          title: ev.title,
-          subtitle: ev.subtitle || null,
-          starts_at: ev.startsAt,
-          season: "2026/27",
-          venue_id: venue.id,
-          source_url: ev.sourceUrl || venue.calendar_url,
-          ticket_url: ev.ticketUrl || ev.sourceUrl || venue.calendar_url,
-          status: "scheduled",
-          updated_at: nowIso,
-        },
-        { onConflict: "external_key" }
-      )
-      .select("*")
-      .single();
-
-    if (evErr || !savedEvent) continue;
-    importedEvents++;
-
-    // Link explicit performer IDs
-    const linkedPerfs: { id: number; name: string; role: string }[] = [];
-    for (const pid of ev.performerIds ?? []) {
-      const found = performers.find((p) => p.id === pid);
-      if (found) {
-        linkedPerfs.push({
-          id: found.id,
-          name: found.name,
-          role: found.performer_type,
-        });
-      }
-    }
-
-    // Link parsed performers by name
-    for (const pRef of ev.performers ?? []) {
-      let found = performers.find(
-        (p) => normalizeText(p.name) === normalizeText(pRef.name)
-      );
-      if (!found && pRef.name) {
-        const { data: created } = await client
-          .from("performers")
-          .upsert(
-            {
-              slug: slugify(pRef.name),
-              name: pRef.name,
-              performer_type: pRef.role || "soloist",
-              instrument_or_role: pRef.instrument || "Guest Artist",
-              is_featured: false,
-            },
-            { onConflict: "slug" }
-          )
-          .select("*")
-          .single();
-        if (created) {
-          performers.push(created);
-          found = created;
-        }
-      }
-      if (found && !linkedPerfs.some((lp) => lp.id === found.id)) {
-        linkedPerfs.push({
-          id: found.id,
-          name: found.name,
-          role: pRef.role || found.performer_type,
-        });
-      }
-    }
-
-    for (let i = 0; i < linkedPerfs.length; i++) {
-      await client.from("concert_event_performers").upsert(
-        {
-          event_id: savedEvent.id,
-          performer_id: linkedPerfs[i].id,
-          billing_role: linkedPerfs[i].role,
-          display_order: i + 1,
-        },
-        { onConflict: "event_id,performer_id,billing_role" }
-      );
-    }
-
-    await client
-      .from("concert_event_works")
-      .delete()
-      .eq("event_id", savedEvent.id);
-
-    for (let wIdx = 0; wIdx < ev.works.length; wIdx++) {
-      const wItem = ev.works[wIdx];
-      const matchedComp = composerMatcher.findMatch({
-        musicbrainz_id: undefined,
-        openopus_id: undefined,
-        name: wItem.composerName,
-        full_name: wItem.composerName,
-        sort_name: undefined,
-        slug: slugify(wItem.composerName),
-        birth_year: undefined,
-        death_year: undefined,
-      });
-
-      let matchedWork: { id: number } | null = null;
-      if (matchedComp) {
-        const wm = workMatchers.get(matchedComp.id);
-        const cat = extractCatalog(wItem.workTitle);
-        if (wm) {
-          matchedWork = wm.findMatch({
-            musicbrainz_id: undefined,
-            openopus_id: undefined,
-            title: wItem.workTitle,
-            catalog_system: cat.catalog_system,
-            catalog_number: cat.catalog_number,
-          });
-        }
-      }
-
-      let suggestionId: number | null = null;
-      if (matchedWork) {
-        matchedWorks++;
-      } else {
-        const meta = buildSuggestionMetadata(
-          wItem.composerName,
-          wItem.workTitle
-        );
-        const perfName = linkedPerfs[0]?.name || venue.short_name || venue.name;
-        const ctx = `Performed by ${perfName} at ${venue.short_name || venue.name} (${String(ev.startsAt).slice(0, 10)})`;
-
-        const { data: exSug } = await client
-          .from("catalog_suggestions")
-          .select("*")
-          .eq("dedup_key", meta.dedupKey)
-          .maybeSingle();
-
-        if (exSug) {
-          suggestionId = exSug.id;
-          if (exSug.resolved_work_id) {
-            matchedWork = { id: exSug.resolved_work_id };
-          } else {
-            await client
-              .from("catalog_suggestions")
-              .update({
-                occurrence_count: (exSug.occurrence_count || 1) + 1,
-                updated_at: nowIso,
-              })
-              .eq("id", exSug.id);
-          }
-        } else {
-          // Auto-enrich up to 10 newly queued season suggestions via IMSLP / Wikipedia / MusicBrainz
-          let enrichedPatch: Partial<
-            Database["public"]["Tables"]["catalog_suggestions"]["Insert"]
-          > = {};
-          if (enrichedSuggestions < 10) {
-            try {
-              const cands = await lookupWorkCandidates(
-                wItem.workTitle,
-                matchedComp?.name || wItem.composerName,
-                { includeComposerMeta: !matchedComp }
-              );
-              const top = cands[0];
-              if (top) {
-                enrichedSuggestions++;
-                enrichedPatch = {
-                  suggested_genre: top.genre || meta.genre,
-                  suggested_catalog_display:
-                    meta.catalogDisplay || top.catalog_display || null,
-                  suggested_year: top.year_composed ?? null,
-                  suggested_key_signature: top.key_signature ?? null,
-                  suggested_duration_minutes: top.duration_minutes ?? null,
-                  suggested_instrumentation: top.instrumentation ?? null,
-                  suggested_description: top.description ?? null,
-                  suggested_imslp_url: top.imslp_url ?? null,
-                  ...(top.composer_meta && !matchedComp
-                    ? {
-                        composer_birth_year: top.composer_meta.birth_year,
-                        composer_death_year: top.composer_meta.death_year,
-                        composer_nationality: top.composer_meta.nationality,
-                        composer_era: top.composer_meta.era,
-                        composer_avatar_url: top.composer_meta.avatar_url,
-                        composer_short_bio: top.composer_meta.short_bio,
-                        composer_imslp_url: top.composer_meta.imslp_url,
-                      }
-                    : {}),
-                };
-              }
-            } catch {
-              // Non-fatal: still insert the season suggestion without enrichment
-            }
-          }
-
-          const { data: newSug } = await client
-            .from("catalog_suggestions")
-            .insert({
-              dedup_key: meta.dedupKey,
-              status: "pending",
-              suggestion_type: "work",
-              source_type: "season_sync",
-              suggested_work_title: wItem.workTitle,
-              suggested_composer_name: matchedComp?.name || wItem.composerName,
-              matched_composer_id: matchedComp?.id ?? null,
-              suggested_genre: meta.genre,
-              suggested_catalog_display: meta.catalogDisplay,
-              source_context: ctx,
-              source_url: ev.sourceUrl || venue.calendar_url,
-              sample_event_id: savedEvent.id,
-              occurrence_count: 1,
-              ...enrichedPatch,
-            })
-            .select("*")
-            .single();
-          if (newSug) {
-            suggestionId = newSug.id;
-            queuedSuggestions++;
-          }
-        }
-      }
-
-      await client.from("concert_event_works").insert({
-        event_id: savedEvent.id,
-        display_order: wIdx + 1,
-        work_id: matchedWork?.id ?? null,
-        composer_id: matchedComp?.id ?? null,
-        raw_composer_name: matchedComp?.name || wItem.composerName,
-        raw_work_title: wItem.workTitle,
-        suggestion_id: matchedWork ? null : suggestionId,
-      });
-    }
-  }
-
-  return NextResponse.json({
-    importedEvents,
-    matchedWorks,
-    queuedSuggestions,
-  });
+  return NextResponse.json(
+    {
+      error:
+        "Provide mode ('nyphil_live' | 'artist_tour' | 'venue_batch' | 'manual') or url.",
+    },
+    { status: 400 }
+  );
 }

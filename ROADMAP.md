@@ -136,5 +136,16 @@
 - [x] Built global `SuggestCatalogModal` wired into Homepage search, `⌘K` Command Palette, Composer Directory, and `/works`
 - [x] Upgraded `/admin` **Catalog Moderation Inbox** with source filters (*Community Search* vs *Concert Seasons*) and 1-click **Approve + Import Top Works & IMSLP** (`/api/admin/import-composer-works`)
 
+---
+
+## Phase 13 — World Stage 2.0: Top-100 Global Venues, Artist Tour Crawler & Deduplication ✅
+
+- [x] Expanded `public.venues` from 12 → **100 iconic world concert halls & opera houses** across North America, Latin America, UK/Europe (including National Philharmonic of Ukraine & Lviv National Opera), East/Southeast Asia, and Oceania (`scripts/data/top-100-venues.mjs` + `scripts/seed-top-100-venues.mjs`)
+- [x] Created `public.stage_entity_proposals` and `public.concert_event_proposals` with strict admin RLS, foreign-key indexes, and cross-source `canonical_fingerprint` deduplication
+- [x] Built open-data Performer & Venue enrichment (`lookupPerformerCandidates` & `lookupVenueCandidates` in `src/lib/catalog-lookup.ts`) fetching biographies, portraits, official websites (`P856`), instruments (`P1303`), OpenStreetMap/Wikidata coordinates (`P625`), and auto-discovered Tour/Calendar URLs
+- [x] Upgraded multi-tier concert & tour parser (`scripts/lib/season-parser.mjs` + `.github/workflows/sync-seasons.yml`): Tier 1 (`Schema.org MusicEvent` JSON-LD, `.ics`, embedded Next/CMS JSON), Tier 2 (HTML schedule heuristics), and Tier 3 (Playwright headless Chromium fallback in GitHub Actions)
+- [x] Built `/admin` unified moderation & merge workflow (`AdminWorldStageTab.tsx` + `/api/admin/stage-approve`): review proposed Performers (**Approve + Crawl Tour Dates**), proposed Venues (**Approve & Pin Hall to World Map**), Staged Concerts, and side-by-side **Cross-Source Merge Diffs**
+
+
 
 

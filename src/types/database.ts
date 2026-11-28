@@ -219,6 +219,7 @@ export type Database = {
       };
       concert_events: {
         Row: {
+          canonical_fingerprint: string | null;
           conductor_id: number | null;
           created_at: string;
           ends_at: string | null;
@@ -238,6 +239,7 @@ export type Database = {
           venue_id: number;
         };
         Insert: {
+          canonical_fingerprint?: string | null;
           conductor_id?: number | null;
           created_at?: string;
           ends_at?: string | null;
@@ -257,6 +259,7 @@ export type Database = {
           venue_id: number;
         };
         Update: {
+          canonical_fingerprint?: string | null;
           conductor_id?: number | null;
           created_at?: string;
           ends_at?: string | null;
@@ -285,11 +288,99 @@ export type Database = {
           },
         ];
       };
+      concert_event_proposals: {
+        Row: {
+          canonical_fingerprint: string;
+          created_at: string;
+          dedup_key: string;
+          duplicate_of_event_id: number | null;
+          ends_at: string | null;
+          id: number;
+          match_confidence: number;
+          match_summary: string | null;
+          matched_venue_id: number | null;
+          performers_payload: Json;
+          proposed_venue_id: number | null;
+          raw_city: string | null;
+          raw_country: string | null;
+          raw_venue_name: string | null;
+          resolved_event_id: number | null;
+          season: string;
+          source_kind: string;
+          source_label: string | null;
+          source_url: string | null;
+          starts_at: string;
+          status: string;
+          subtitle: string | null;
+          ticket_url: string | null;
+          title: string;
+          updated_at: string;
+          works_payload: Json;
+        };
+        Insert: {
+          canonical_fingerprint: string;
+          created_at?: string;
+          dedup_key: string;
+          duplicate_of_event_id?: number | null;
+          ends_at?: string | null;
+          id?: never;
+          match_confidence?: number;
+          match_summary?: string | null;
+          matched_venue_id?: number | null;
+          performers_payload?: Json;
+          proposed_venue_id?: number | null;
+          raw_city?: string | null;
+          raw_country?: string | null;
+          raw_venue_name?: string | null;
+          resolved_event_id?: number | null;
+          season?: string;
+          source_kind?: string;
+          source_label?: string | null;
+          source_url?: string | null;
+          starts_at: string;
+          status?: string;
+          subtitle?: string | null;
+          ticket_url?: string | null;
+          title: string;
+          updated_at?: string;
+          works_payload?: Json;
+        };
+        Update: {
+          canonical_fingerprint?: string;
+          created_at?: string;
+          dedup_key?: string;
+          duplicate_of_event_id?: number | null;
+          ends_at?: string | null;
+          id?: never;
+          match_confidence?: number;
+          match_summary?: string | null;
+          matched_venue_id?: number | null;
+          performers_payload?: Json;
+          proposed_venue_id?: number | null;
+          raw_city?: string | null;
+          raw_country?: string | null;
+          raw_venue_name?: string | null;
+          resolved_event_id?: number | null;
+          season?: string;
+          source_kind?: string;
+          source_label?: string | null;
+          source_url?: string | null;
+          starts_at?: string;
+          status?: string;
+          subtitle?: string | null;
+          ticket_url?: string | null;
+          title?: string;
+          updated_at?: string;
+          works_payload?: Json;
+        };
+        Relationships: [];
+      };
       performers: {
         Row: {
           avatar_url: string | null;
           calendar_url: string | null;
           created_at: string;
+          feed_type: string;
           home_city: string | null;
           id: number;
           instrument_or_role: string | null;
@@ -303,11 +394,13 @@ export type Database = {
           slug: string;
           updated_at: string;
           website_url: string | null;
+          wikidata_qid: string | null;
         };
         Insert: {
           avatar_url?: string | null;
           calendar_url?: string | null;
           created_at?: string;
+          feed_type?: string;
           home_city?: string | null;
           id?: never;
           instrument_or_role?: string | null;
@@ -321,11 +414,13 @@ export type Database = {
           slug: string;
           updated_at?: string;
           website_url?: string | null;
+          wikidata_qid?: string | null;
         };
         Update: {
           avatar_url?: string | null;
           calendar_url?: string | null;
           created_at?: string;
+          feed_type?: string;
           home_city?: string | null;
           id?: never;
           instrument_or_role?: string | null;
@@ -339,6 +434,106 @@ export type Database = {
           slug?: string;
           updated_at?: string;
           website_url?: string | null;
+          wikidata_qid?: string | null;
+        };
+        Relationships: [];
+      };
+      stage_entity_proposals: {
+        Row: {
+          architect_or_acoustics: string | null;
+          calendar_url: string | null;
+          capacity: number | null;
+          city: string | null;
+          country: string | null;
+          country_code: string | null;
+          created_at: string;
+          dedup_key: string;
+          entity_type: string;
+          id: number;
+          instrument_or_role: string | null;
+          latitude: number | null;
+          longitude: number | null;
+          name: string;
+          nationality: string | null;
+          occurrence_count: number;
+          opened_year: number | null;
+          performer_type: string | null;
+          photo_url: string | null;
+          resolved_performer_id: number | null;
+          resolved_venue_id: number | null;
+          short_bio: string | null;
+          short_name: string | null;
+          source_context: string | null;
+          source_type: string;
+          source_url: string | null;
+          status: string;
+          updated_at: string;
+          website_url: string | null;
+          wikidata_qid: string | null;
+        };
+        Insert: {
+          architect_or_acoustics?: string | null;
+          calendar_url?: string | null;
+          capacity?: number | null;
+          city?: string | null;
+          country?: string | null;
+          country_code?: string | null;
+          created_at?: string;
+          dedup_key: string;
+          entity_type: string;
+          id?: never;
+          instrument_or_role?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
+          name: string;
+          nationality?: string | null;
+          occurrence_count?: number;
+          opened_year?: number | null;
+          performer_type?: string | null;
+          photo_url?: string | null;
+          resolved_performer_id?: number | null;
+          resolved_venue_id?: number | null;
+          short_bio?: string | null;
+          short_name?: string | null;
+          source_context?: string | null;
+          source_type?: string;
+          source_url?: string | null;
+          status?: string;
+          updated_at?: string;
+          website_url?: string | null;
+          wikidata_qid?: string | null;
+        };
+        Update: {
+          architect_or_acoustics?: string | null;
+          calendar_url?: string | null;
+          capacity?: number | null;
+          city?: string | null;
+          country?: string | null;
+          country_code?: string | null;
+          created_at?: string;
+          dedup_key?: string;
+          entity_type?: string;
+          id?: never;
+          instrument_or_role?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
+          name?: string;
+          nationality?: string | null;
+          occurrence_count?: number;
+          opened_year?: number | null;
+          performer_type?: string | null;
+          photo_url?: string | null;
+          resolved_performer_id?: number | null;
+          resolved_venue_id?: number | null;
+          short_bio?: string | null;
+          short_name?: string | null;
+          source_context?: string | null;
+          source_type?: string;
+          source_url?: string | null;
+          status?: string;
+          updated_at?: string;
+          website_url?: string | null;
+          wikidata_qid?: string | null;
         };
         Relationships: [];
       };
@@ -353,7 +548,9 @@ export type Database = {
           country_code: string | null;
           created_at: string;
           description: string | null;
+          feed_type: string;
           id: number;
+          last_synced_at: string | null;
           latitude: number;
           longitude: number;
           name: string;
@@ -361,8 +558,10 @@ export type Database = {
           photo_url: string | null;
           short_name: string | null;
           slug: string;
+          tier: number;
           updated_at: string;
           website_url: string | null;
+          wikidata_qid: string | null;
         };
         Insert: {
           address?: string | null;
@@ -374,7 +573,9 @@ export type Database = {
           country_code?: string | null;
           created_at?: string;
           description?: string | null;
+          feed_type?: string;
           id?: never;
+          last_synced_at?: string | null;
           latitude: number;
           longitude: number;
           name: string;
@@ -382,8 +583,10 @@ export type Database = {
           photo_url?: string | null;
           short_name?: string | null;
           slug: string;
+          tier?: number;
           updated_at?: string;
           website_url?: string | null;
+          wikidata_qid?: string | null;
         };
         Update: {
           address?: string | null;
@@ -395,7 +598,9 @@ export type Database = {
           country_code?: string | null;
           created_at?: string;
           description?: string | null;
+          feed_type?: string;
           id?: never;
+          last_synced_at?: string | null;
           latitude?: number;
           longitude?: number;
           name?: string;
@@ -403,8 +608,10 @@ export type Database = {
           photo_url?: string | null;
           short_name?: string | null;
           slug?: string;
+          tier?: number;
           updated_at?: string;
           website_url?: string | null;
+          wikidata_qid?: string | null;
         };
         Relationships: [];
       };
@@ -978,3 +1185,7 @@ export type ConcertEventWork =
   Database["public"]["Tables"]["concert_event_works"]["Row"];
 export type CatalogSuggestion =
   Database["public"]["Tables"]["catalog_suggestions"]["Row"];
+export type StageEntityProposal =
+  Database["public"]["Tables"]["stage_entity_proposals"]["Row"];
+export type ConcertEventProposal =
+  Database["public"]["Tables"]["concert_event_proposals"]["Row"];

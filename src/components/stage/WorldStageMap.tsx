@@ -20,11 +20,12 @@ interface WorldStageMapProps {
 }
 
 const REGION_PRESETS = [
-  { id: "world", label: "World", center: [8, 34] as [number, number], zoom: 1.55 },
-  { id: "europe", label: "Europe", center: [9.5, 49.5] as [number, number], zoom: 3.9 },
+  { id: "world", label: "World", center: [12, 26] as [number, number], zoom: 1.45 },
+  { id: "europe", label: "Europe", center: [11.5, 49.5] as [number, number], zoom: 3.85 },
   { id: "americas", label: "North America", center: [-96, 38.5] as [number, number], zoom: 3.1 },
-  { id: "ny", label: "New York", center: [-73.9817, 40.769] as [number, number], zoom: 13.2 },
-  { id: "asia", label: "East Asia", center: [139.74, 35.67] as [number, number], zoom: 4.5 },
+  { id: "latam", label: "Latin America", center: [-64, -15] as [number, number], zoom: 2.55 },
+  { id: "asia", label: "East Asia", center: [126.5, 33.5] as [number, number], zoom: 3.7 },
+  { id: "oceania", label: "Oceania", center: [147, -35] as [number, number], zoom: 4.1 },
 ] as const;
 
 interface GeoFeature {
@@ -67,6 +68,7 @@ export function WorldStageMap({
   const markersRef = useRef<import("maplibre-gl").Marker[]>([]);
   const readyRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
+  const [showOnlyActiveHalls, setShowOnlyActiveHalls] = useState(false);
   const [useSvgFallback, setUseSvgFallback] = useState(false);
   const [svgFeatures, setSvgFeatures] = useState<GeoFeature[]>([]);
   const [svgZoom, setSvgZoom] = useState(1);
@@ -208,69 +210,72 @@ export function WorldStageMap({
       for (const venue of venues) {
         const isSelected = selectedVenueSlug === venue.slug;
         const hasActive = venue.activeEventCount > 0;
+        if (showOnlyActiveHalls && !hasActive && !isSelected) continue;
 
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.title = `${venue.short_name || venue.name} (${venue.city}) — ${venue.activeEventCount} concerts`;
+        btn.title = `${venue.short_name || venue.name} (${venue.city}, ${venue.country})${hasActive ? ` — ${venue.activeEventCount} scheduled concert${venue.activeEventCount === 1 ? "" : "s"}` : " — Click to inspect hall"}`;
         btn.style.cursor = "pointer";
         btn.style.background = "transparent";
         btn.style.border = "none";
         btn.style.padding = "0";
+        btn.style.zIndex = isSelected ? "30" : hasActive ? "20" : "5";
 
-        const pillBg = isSelected
-          ? "#d4af6a"
-          : hasActive
-            ? "#181512"
-            : "#141210";
-        const pillText = isSelected
-          ? "#11100e"
-          : hasActive
-            ? "#f3efe6"
-            : "#78716c";
-        const borderCol = isSelected
-          ? "#fff8eb"
-          : hasActive
-            ? "#d4af6a"
-            : "#3f3a34";
-        const opacity = !hasActive && selectedVenueSlug === "all" ? "0.42" : "1";
+        if (isSelected || hasActive) {
+          const pillBg = isSelected ? "#d4af6a" : "#181512";
+          const pillText = isSelected ? "#11100e" : "#f3efe6";
+          const borderCol = isSelected ? "#fff8eb" : "#d4af6a";
 
-        btn.innerHTML = `
-          <div style="
-            display:inline-flex;
-            align-items:center;
-            gap:6px;
-            padding:4px 9px;
-            border-radius:999px;
-            background:${pillBg};
-            color:${pillText};
-            border:1.5px solid ${borderCol};
-            box-shadow:0 4px 14px rgba(0,0,0,0.65);
-            font-family:Inter,system-ui,sans-serif;
-            font-size:11px;
-            font-weight:600;
-            white-space:nowrap;
-            opacity:${opacity};
-            transform:${isSelected ? "scale(1.12)" : "scale(1)"};
-            transition:transform 0.15s ease;
-          ">
-            <span style="
-              width:7px;
-              height:7px;
+          btn.innerHTML = `
+            <div style="
+              display:inline-flex;
+              align-items:center;
+              gap:6px;
+              padding:4px 9px;
               border-radius:999px;
-              background:${isSelected ? "#11100e" : hasActive ? "#d4af6a" : "#57534e"};
-              display:inline-block;
-            "></span>
-            <span>${venue.short_name || venue.city}</span>
-            <span style="
-              font-family:monospace;
-              font-size:10px;
-              padding:0 5px;
+              background:${pillBg};
+              color:${pillText};
+              border:1.5px solid ${borderCol};
+              box-shadow:0 4px 14px rgba(0,0,0,0.65);
+              font-family:Inter,system-ui,sans-serif;
+              font-size:11px;
+              font-weight:600;
+              white-space:nowrap;
+              transform:${isSelected ? "scale(1.12)" : "scale(1)"};
+              transition:transform 0.15s ease;
+            ">
+              <span style="
+                width:7px;
+                height:7px;
+                border-radius:999px;
+                background:${isSelected ? "#11100e" : "#d4af6a"};
+                display:inline-block;
+              "></span>
+              <span>${venue.short_name || venue.city}</span>
+              <span style="
+                font-family:monospace;
+                font-size:10px;
+                padding:0 5px;
+                border-radius:999px;
+                background:${isSelected ? "rgba(17,16,14,0.16)" : "rgba(212,175,106,0.16)"};
+                color:${isSelected ? "#11100e" : "#e3c27d"};
+              ">${venue.activeEventCount}</span>
+            </div>
+          `;
+        } else {
+          // Compact architectural jewel pin for cataloged Top 100 halls without active filter matches
+          btn.innerHTML = `
+            <div style="
+              width:11px;
+              height:11px;
               border-radius:999px;
-              background:${isSelected ? "rgba(17,16,14,0.16)" : "rgba(212,175,106,0.16)"};
-              color:${isSelected ? "#11100e" : "#e3c27d"};
-            ">${venue.activeEventCount}</span>
-          </div>
-        `;
+              background:#211d18;
+              border:1.5px solid rgba(212,175,106,0.72);
+              box-shadow:0 2px 8px rgba(0,0,0,0.75);
+              transition:transform 0.15s ease, background 0.15s ease;
+            " onmouseenter="this.style.transform='scale(1.45)';this.style.background='#d4af6a'" onmouseleave="this.style.transform='scale(1)';this.style.background='#211d18'"></div>
+          `;
+        }
 
         btn.addEventListener("click", (ev) => {
           ev.stopPropagation();
@@ -293,7 +298,7 @@ export function WorldStageMap({
     return () => {
       disposed = true;
     };
-  }, [useSvgFallback, mapReady, venues, selectedVenueSlug, onSelectVenue]);
+  }, [useSvgFallback, mapReady, venues, selectedVenueSlug, onSelectVenue, showOnlyActiveHalls]);
 
   // Update tour-route GeoJSON line when an orchestra or soloist is selected
   useEffect(() => {
@@ -369,6 +374,19 @@ export function WorldStageMap({
         </div>
 
         <div className="flex flex-wrap items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setShowOnlyActiveHalls((v) => !v)}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold cursor-pointer mr-1 border ${
+              showOnlyActiveHalls
+                ? "bg-[#d4af6a]/20 border-[#d4af6a]/50 text-[#e3c27d]"
+                : "bg-white/5 border-white/10 text-stone-300 hover:bg-white/15"
+            }`}
+          >
+            {showOnlyActiveHalls
+              ? "Showing Active Halls"
+              : `All ${venues.length} Halls`}
+          </button>
           {REGION_PRESETS.map((r) => (
             <button
               key={r.id}
@@ -503,10 +521,14 @@ export function WorldStageMap({
 
       {/* Bottom Attribution & Legend */}
       <div className="px-4 py-2 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-[11px] text-stone-400">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <span className="inline-flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-[#d4af6a]" />
-            Active Concert Hall (number = matching concerts)
+            Active Season Hall (pill = concert count)
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#211d18] border border-[#d4af6a]" />
+            Cataloged World Hall ({venues.length} total)
           </span>
           {tourRouteCoords && tourRouteCoords.length >= 2 && (
             <span className="inline-flex items-center gap-1.5 text-[#e3c27d]">

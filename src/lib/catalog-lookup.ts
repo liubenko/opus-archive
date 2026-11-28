@@ -41,6 +41,43 @@ export interface EnrichedWorkCandidate {
   composer_meta: EnrichedComposerCandidate | null;
 }
 
+export interface EnrichedPerformerCandidate {
+  id: string;
+  name: string;
+  performer_type: "orchestra" | "ensemble" | "conductor" | "soloist";
+  instrument_or_role: string;
+  nationality: string | null;
+  home_city: string | null;
+  website_url: string | null;
+  calendar_url: string | null;
+  avatar_url: string | null;
+  short_bio: string;
+  wikidata_qid: string | null;
+  source_url: string | null;
+  sources: string[];
+}
+
+export interface EnrichedVenueCandidate {
+  id: string;
+  name: string;
+  short_name: string;
+  city: string;
+  country: string;
+  country_code: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  capacity: number | null;
+  opened_year: number | null;
+  architect_or_acoustics: string | null;
+  website_url: string | null;
+  calendar_url: string | null;
+  photo_url: string | null;
+  short_bio: string;
+  wikidata_qid: string | null;
+  source_url: string | null;
+  sources: string[];
+}
+
 const NATIONALITY_PATTERNS = [
   "Ukrainian",
   "German",
@@ -685,6 +722,679 @@ export async function lookupWorkCandidates(
       source_url: wikiPageUrl,
       sources: ["Wikipedia"],
       composer_meta: primaryComposerMeta,
+    });
+  }
+
+  return out.slice(0, 4);
+}
+
+const WIKIDATA_INSTRUMENTS: Record<string, string> = {
+  Q5994: "Piano",
+  Q8355: "Violin",
+  Q8371: "Cello",
+  Q8350: "Viola",
+  Q8358: "Double Bass",
+  Q11405: "Flute",
+  Q8341: "Oboe",
+  Q8343: "Clarinet",
+  Q8348: "Bassoon",
+  Q163829: "Horn",
+  Q8338: "Trumpet",
+  Q8353: "Trombone",
+  Q47369: "Harp",
+  Q1444: "Organ",
+  Q131168: "Harpsichord",
+  Q6607: "Guitar",
+  Q17172850: "Voice",
+};
+
+/**
+ * Crawls an artist or venue homepage briefly to auto-discover their official
+ * concert calendar / tour dates / schedule URL.
+ */
+export async function discoverCalendarUrl(
+  websiteUrl: string | null | undefined
+): Promise<string | null> {
+  if (!websiteUrl) return null;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3200);
+    const res = await fetch(websiteUrl, {
+      headers: { "User-Agent": UA },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const html = (await res.text()).slice(0, 180000);
+    const base = new URL(websiteUrl);
+
+    const anchorRegex =
+      /<a\b[^>]*href=["']([^"'#]+)["'][^>]*>([\s\S]{0,90}?)<\/a>/gi;
+    let bestUrl: string | null = null;
+    let bestScore = 0;
+
+    for (const m of html.matchAll(anchorRegex)) {
+      const rawHref = m[1].trim();
+      const label = m[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      if (
+        !rawHref ||
+        rawHref.startsWith("mailto:") ||
+        rawHref.startsWith("tel:") ||
+        rawHref.startsWith("javascript:")
+      ) {
+        continue;
+      }
+
+      let resolved: URL;
+      try {
+        resolved = new URL(rawHref, base);
+      } catch {
+        continue;
+      }
+      // Keep on same root domain or official calendar subdomain
+      const baseDomain = base.hostname.replace(/^www\./, "");
+      if (!resolved.hostname.endsWith(baseDomain)) continue;
+
+      const pathLower = resolved.pathname.toLowerCase();
+      const labelLower = label.toLowerCase();
+
+      let score = 0;
+      if (
+        /\/(concerts?|calendar|schedule|tour|events?|dates|live|whats-on|performances|agenda|season|konzerte)\/?$/i.test(
+          pathLower
+        )
+      ) {
+        score += 10;
+      } else if (
+        /(concerts?|calendar|schedule|tour|events|whats-on|performances|agenda|season|konzerte)/i.test(
+          pathLower
+        )
+      ) {
+        score += 5;
+      }
+      if (
+        /\b(concerts?|calendar|schedule|tour|events?|dates|live|what'?s on|performances|season|agenda)\b/i.test(
+          labelLower
+        )
+      ) {
+        score += 6;
+      }
+      // Avoid single-event detail slugs when looking for the master schedule page
+      if (pathLower.split("/").filter(Boolean).length > 3) {
+        score -= 4;
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestUrl = resolved.toString();
+      }
+    }
+
+    return bestScore >= 5 ? bestUrl : null;
+  } catch {
+    return null;
+  }
+}
+
+function inferPerformerRoleAndInstrument(
+  name: string,
+  text: string,
+  wdInstrumentQids: string[]
+): {
+  performer_type: "orchestra" | "ensemble" | "conductor" | "soloist";
+  instrument_or_role: string;
+} {
+  const combined = `${name} ${text}`;
+  if (/orchestra|philharmoni|symphony|sinfonie|staatskapelle|orchester|orchestre/i.test(name)) {
+    return {
+      performer_type: "orchestra",
+      instrument_or_role: "Symphony Orchestra",
+    };
+  }
+  if (/quartet|trio|quintet|ensemble|consort|camerata|choir|chorus/i.test(name)) {
+    return {
+      performer_type: "ensemble",
+      instrument_or_role: /quartet/i.test(name)
+        ? "String Quartet"
+        : /choir|chorus/i.test(name)
+          ? "Choir"
+          : "Chamber Ensemble",
+    };
+  }
+  if (/\bconductor\b/i.test(text) && !/\bpianist|violinist|cellist\b/i.test(text.slice(0, 120))) {
+    return { performer_type: "conductor", instrument_or_role: "Conductor" };
+  }
+
+  for (const qid of wdInstrumentQids) {
+    if (WIKIDATA_INSTRUMENTS[qid]) {
+      return {
+        performer_type: "soloist",
+        instrument_or_role: WIKIDATA_INSTRUMENTS[qid],
+      };
+    }
+  }
+
+  const roleMap: [RegExp, string][] = [
+    [/\bpianist\b/i, "Piano"],
+    [/\bviolinist\b/i, "Violin"],
+    [/\bcellist\b/i, "Cello"],
+    [/\bviolist\b/i, "Viola"],
+    [/\bflutist|\bflautist\b/i, "Flute"],
+    [/\boboist\b/i, "Oboe"],
+    [/\bclarinett?ist\b/i, "Clarinet"],
+    [/\bsoprano\b/i, "Soprano"],
+    [/\bmezzo-soprano\b/i, "Mezzo-Soprano"],
+    [/\bcountertenor\b/i, "Countertenor"],
+    [/\btenor\b/i, "Tenor"],
+    [/\bbaritone\b/i, "Baritone"],
+    [/\bbass-baritone|\bbass\b/i, "Bass"],
+    [/\borganist\b/i, "Organ"],
+    [/\bharpsichordist\b/i, "Harpsichord"],
+    [/\bharpist\b/i, "Harp"],
+    [/\bguitarist\b/i, "Guitar"],
+    [/\btrumpeter\b/i, "Trumpet"],
+    [/\bpercussionist\b/i, "Percussion"],
+    [/\bconductor\b/i, "Conductor"],
+  ];
+
+  for (const [rx, label] of roleMap) {
+    if (rx.test(combined)) {
+      return {
+        performer_type: label === "Conductor" ? "conductor" : "soloist",
+        instrument_or_role: label,
+      };
+    }
+  }
+
+  return { performer_type: "soloist", instrument_or_role: "Soloist" };
+}
+
+/**
+ * Looks up Performers (Soloists, Conductors, Orchestras, Ensembles) across
+ * Wikipedia REST + Wikidata (official website P856, instrument P1303) +
+ * MusicBrainz URL relations + homepage Tour/Calendar URL auto-discovery.
+ */
+export async function lookupPerformerCandidates(
+  query: string
+): Promise<EnrichedPerformerCandidate[]> {
+  const q = query.trim();
+  if (!q) return [];
+
+  type MbArtistUrlSearch = {
+    artists?: {
+      id: string;
+      name: string;
+      type?: string;
+      country?: string;
+      area?: { name?: string };
+      disambiguation?: string;
+    }[];
+  };
+
+  const [wikiRes, mbRes] = await Promise.all([
+    fetch(
+      `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(
+        q
+      )}&limit=4&namespace=0&format=json`,
+      { headers: { "User-Agent": UA } }
+    )
+      .then((r) => (r.ok ? (r.json() as Promise<OpenSearchTuple>) : null))
+      .catch(() => null),
+    fetch(
+      `https://musicbrainz.org/ws/2/artist/?query=${encodeURIComponent(
+        q
+      )}&fmt=json&limit=3`,
+      { headers: { "User-Agent": UA } }
+    )
+      .then((r) => (r.ok ? (r.json() as Promise<MbArtistUrlSearch>) : null))
+      .catch(() => null),
+  ]);
+
+  const titles = Array.isArray(wikiRes?.[1]) ? wikiRes[1].slice(0, 3) : [];
+  const summaries = await Promise.all(
+    titles.map(async (t) => {
+      try {
+        const r = await fetch(
+          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
+            t.replace(/ /g, "_")
+          )}`,
+          { headers: { "User-Agent": UA } }
+        );
+        if (!r.ok) return null;
+        return (await r.json()) as {
+          title?: string;
+          type?: string;
+          wikibase_item?: string;
+          description?: string;
+          extract?: string;
+          thumbnail?: { source?: string };
+          content_urls?: { desktop?: { page?: string } };
+        };
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  // Fetch Wikidata official website (P856) + instruments (P1303)
+  const qids = summaries
+    .map((s) => s?.wikibase_item)
+    .filter((x): x is string => Boolean(x));
+
+  const wdMeta = new Map<
+    string,
+    { website: string | null; instrumentQids: string[] }
+  >();
+
+  if (qids.length > 0) {
+    try {
+      const wdRes = await fetch(
+        `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${qids.join(
+          "|"
+        )}&props=claims&format=json`,
+        { headers: { "User-Agent": UA } }
+      );
+      if (wdRes.ok) {
+        const wdJson = (await wdRes.json()) as {
+          entities?: Record<
+            string,
+            {
+              claims?: {
+                P856?: { mainsnak?: { datavalue?: { value?: string } } }[];
+                P1303?: {
+                  mainsnak?: { datavalue?: { value?: { id?: string } } };
+                }[];
+              };
+            }
+          >;
+        };
+        for (const qid of qids) {
+          const claims = wdJson.entities?.[qid]?.claims;
+          const site = claims?.P856?.[0]?.mainsnak?.datavalue?.value || null;
+          const instIds = (claims?.P1303 || [])
+            .map((c) => c.mainsnak?.datavalue?.value?.id)
+            .filter((id): id is string => Boolean(id));
+          wdMeta.set(qid, { website: site, instrumentQids: instIds });
+        }
+      }
+    } catch {
+      // Ignore Wikidata error
+    }
+  }
+
+  // Optional MusicBrainz official homepage fallback for top artist match
+  let mbOfficialSite: string | null = null;
+  let mbCity: string | null = null;
+  const topMb = mbRes?.artists?.[0];
+  if (topMb?.id) {
+    mbCity = topMb.area?.name || null;
+    try {
+      const mbDetail = await fetch(
+        `https://musicbrainz.org/ws/2/artist/${topMb.id}?inc=url-rels&fmt=json`,
+        { headers: { "User-Agent": UA } }
+      ).then((r) =>
+        r.ok
+          ? (r.json() as Promise<{
+              relations?: { type?: string; url?: { resource?: string } }[];
+            }>)
+          : null
+      );
+      const hp = mbDetail?.relations?.find(
+        (rel) => rel.type === "official homepage"
+      );
+      mbOfficialSite = hp?.url?.resource || null;
+    } catch {
+      // Ignore MB detail error
+    }
+  }
+
+  const out: EnrichedPerformerCandidate[] = [];
+
+  for (let i = 0; i < summaries.length; i++) {
+    const sum = summaries[i];
+    if (!sum || !sum.extract || sum.type === "disambiguation") continue;
+    const combined = `${sum.description || ""} ${sum.extract}`;
+    if (
+      summaries.length > 1 &&
+      !/orchestra|philharmoni|symphony|conductor|pianist|violinist|cellist|singer|soprano|tenor|baritone|musician|quartet|ensemble|choir|violist|flutist|oboist|clarinetist|organist|guitarist|harpist/i.test(
+        combined
+      )
+    ) {
+      continue;
+    }
+
+    const cleanName = String(sum.title || q)
+      .replace(/\s*\([^)]*\)\s*$/, "")
+      .trim();
+    const { nationality } = extractYearsAndNationality(combined);
+    const wd = sum.wikibase_item ? wdMeta.get(sum.wikibase_item) : undefined;
+    const { performer_type, instrument_or_role } =
+      inferPerformerRoleAndInstrument(
+        cleanName,
+        combined,
+        wd?.instrumentQids || []
+      );
+
+    const websiteUrl =
+      wd?.website || (i === 0 ? mbOfficialSite : null) || null;
+    const calendarUrl =
+      i === 0 && websiteUrl ? await discoverCalendarUrl(websiteUrl) : null;
+
+    const sources = ["Wikipedia"];
+    if (wd) sources.push("Wikidata");
+    if (i === 0 && topMb) sources.push("MusicBrainz");
+    if (calendarUrl) sources.push("Tour Page");
+
+    out.push({
+      id: `perf:${sum.wikibase_item || cleanName}`,
+      name: cleanName,
+      performer_type,
+      instrument_or_role,
+      nationality: nationality !== "International" ? nationality : null,
+      home_city: i === 0 ? mbCity : null,
+      website_url: websiteUrl,
+      calendar_url: calendarUrl || websiteUrl,
+      avatar_url: sum.thumbnail?.source || null,
+      short_bio: sum.extract.slice(0, 480),
+      wikidata_qid: sum.wikibase_item || null,
+      source_url:
+        sum.content_urls?.desktop?.page || websiteUrl || null,
+      sources,
+    });
+  }
+
+  // MusicBrainz-only fallback if no Wikipedia article exists yet (e.g. rising soloist)
+  if (out.length === 0 && topMb) {
+    const { performer_type, instrument_or_role } =
+      inferPerformerRoleAndInstrument(
+        topMb.name,
+        topMb.disambiguation || "",
+        []
+      );
+    const calendarUrl = mbOfficialSite
+      ? await discoverCalendarUrl(mbOfficialSite)
+      : null;
+    out.push({
+      id: `mb-perf:${topMb.id}`,
+      name: topMb.name,
+      performer_type:
+        topMb.type === "Group" || topMb.type === "Orchestra"
+          ? performer_type === "soloist"
+            ? "ensemble"
+            : performer_type
+          : performer_type,
+      instrument_or_role,
+      nationality: null,
+      home_city: mbCity,
+      website_url: mbOfficialSite,
+      calendar_url: calendarUrl || mbOfficialSite,
+      avatar_url: null,
+      short_bio: `${topMb.name}${topMb.disambiguation ? ` — ${topMb.disambiguation}` : " — classical performing artist"}.`,
+      wikidata_qid: null,
+      source_url:
+        mbOfficialSite || `https://musicbrainz.org/artist/${topMb.id}`,
+      sources: calendarUrl ? ["MusicBrainz", "Tour Page"] : ["MusicBrainz"],
+    });
+  }
+
+  return out.slice(0, 4);
+}
+
+/**
+ * Looks up Concert Halls, Opera Houses & Venues outside our Top 100 via
+ * Wikipedia REST + Wikidata (coords P625, capacity P1083, opened P1619, website P856) +
+ * OpenStreetMap Nominatim geocoding fallback + calendar URL discovery.
+ */
+export async function lookupVenueCandidates(
+  query: string,
+  cityHint?: string
+): Promise<EnrichedVenueCandidate[]> {
+  const q = [query.trim(), cityHint?.trim()].filter(Boolean).join(" ");
+  if (!q) return [];
+
+  type NominatimHit = {
+    place_id: number;
+    name?: string;
+    display_name: string;
+    lat: string;
+    lon: string;
+    extratags?: {
+      wikidata?: string;
+      website?: string;
+      capacity?: string;
+      architect?: string;
+    };
+    address?: {
+      city?: string;
+      town?: string;
+      municipality?: string;
+      state?: string;
+      country?: string;
+      country_code?: string;
+    };
+  };
+
+  const [wikiRes, osmRes] = await Promise.all([
+    fetch(
+      `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(
+        q
+      )}&limit=3&namespace=0&format=json`,
+      { headers: { "User-Agent": UA } }
+    )
+      .then((r) => (r.ok ? (r.json() as Promise<OpenSearchTuple>) : null))
+      .catch(() => null),
+    fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+        q
+      )}&format=jsonv2&addressdetails=1&extratags=1&limit=3`,
+      { headers: { "User-Agent": UA, "Accept-Language": "en" } }
+    )
+      .then((r) => (r.ok ? (r.json() as Promise<NominatimHit[]>) : null))
+      .catch(() => null),
+  ]);
+
+  const osmTop = osmRes?.[0] || null;
+  const titles = Array.isArray(wikiRes?.[1]) ? wikiRes[1].slice(0, 2) : [];
+
+  const summaries = await Promise.all(
+    titles.map(async (t) => {
+      try {
+        const r = await fetch(
+          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
+            t.replace(/ /g, "_")
+          )}`,
+          { headers: { "User-Agent": UA } }
+        );
+        if (!r.ok) return null;
+        return (await r.json()) as {
+          title?: string;
+          type?: string;
+          wikibase_item?: string;
+          extract?: string;
+          coordinates?: { lat?: number; lon?: number };
+          thumbnail?: { source?: string };
+          content_urls?: { desktop?: { page?: string } };
+        };
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  const qids = Array.from(
+    new Set(
+      [
+        ...summaries.map((s) => s?.wikibase_item),
+        osmTop?.extratags?.wikidata,
+      ].filter((x): x is string => Boolean(x))
+    )
+  );
+
+  const wdVenueMeta = new Map<
+    string,
+    {
+      lat: number | null;
+      lng: number | null;
+      capacity: number | null;
+      openedYear: number | null;
+      website: string | null;
+    }
+  >();
+
+  if (qids.length > 0) {
+    try {
+      const wdRes = await fetch(
+        `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${qids.join(
+          "|"
+        )}&props=claims&format=json`,
+        { headers: { "User-Agent": UA } }
+      );
+      if (wdRes.ok) {
+        const wdJson = (await wdRes.json()) as {
+          entities?: Record<
+            string,
+            {
+              claims?: {
+                P625?: {
+                  mainsnak?: {
+                    datavalue?: {
+                      value?: { latitude?: number; longitude?: number };
+                    };
+                  };
+                }[];
+                P1083?: {
+                  mainsnak?: { datavalue?: { value?: { amount?: string } } };
+                }[];
+                P1619?: {
+                  mainsnak?: { datavalue?: { value?: { time?: string } } };
+                }[];
+                P571?: {
+                  mainsnak?: { datavalue?: { value?: { time?: string } } };
+                }[];
+                P856?: { mainsnak?: { datavalue?: { value?: string } } }[];
+              };
+            }
+          >;
+        };
+        for (const qid of qids) {
+          const c = wdJson.entities?.[qid]?.claims;
+          const coord = c?.P625?.[0]?.mainsnak?.datavalue?.value;
+          const capStr = c?.P1083?.[0]?.mainsnak?.datavalue?.value?.amount;
+          const openStr =
+            c?.P1619?.[0]?.mainsnak?.datavalue?.value?.time ||
+            c?.P571?.[0]?.mainsnak?.datavalue?.value?.time ||
+            "";
+          const ym = openStr.match(/([12]\d{3})/);
+          wdVenueMeta.set(qid, {
+            lat: coord?.latitude ?? null,
+            lng: coord?.longitude ?? null,
+            capacity: capStr ? Math.abs( parseInt(capStr, 10) ) || null : null,
+            openedYear: ym ? Number(ym[1]) : null,
+            website: c?.P856?.[0]?.mainsnak?.datavalue?.value || null,
+          });
+        }
+      }
+    } catch {
+      // Ignore Wikidata error
+    }
+  }
+
+  const out: EnrichedVenueCandidate[] = [];
+  const osmCity =
+    osmTop?.address?.city ||
+    osmTop?.address?.town ||
+    osmTop?.address?.municipality ||
+    cityHint ||
+    "";
+  const osmCountry = osmTop?.address?.country || "";
+  const osmCode = osmTop?.address?.country_code
+    ? osmTop.address.country_code.toUpperCase()
+    : null;
+
+  for (let i = 0; i < summaries.length; i++) {
+    const sum = summaries[i];
+    if (!sum || !sum.extract || sum.type === "disambiguation") continue;
+    const cleanName = String(sum.title || query)
+      .replace(/\s*\([^)]*\)\s*$/, "")
+      .trim();
+    const wd = sum.wikibase_item
+      ? wdVenueMeta.get(sum.wikibase_item)
+      : undefined;
+
+    const lat =
+      sum.coordinates?.lat ??
+      wd?.lat ??
+      (i === 0 && osmTop ? Number(osmTop.lat) : null);
+    const lng =
+      sum.coordinates?.lon ??
+      wd?.lng ??
+      (i === 0 && osmTop ? Number(osmTop.lon) : null);
+    const website =
+      wd?.website || (i === 0 ? osmTop?.extratags?.website || null : null);
+    const calendarUrl =
+      i === 0 && website ? await discoverCalendarUrl(website) : null;
+
+    const sources = ["Wikipedia"];
+    if (wd) sources.push("Wikidata");
+    if (osmTop && i === 0) sources.push("OpenStreetMap");
+    if (calendarUrl) sources.push("Calendar Page");
+
+    out.push({
+      id: `venue:${sum.wikibase_item || cleanName}`,
+      name: cleanName,
+      short_name: cleanName.slice(0, 32),
+      city: osmCity || cityHint || "Unknown City",
+      country: osmCountry || "International",
+      country_code: osmCode,
+      latitude: lat,
+      longitude: lng,
+      capacity:
+        wd?.capacity ||
+        (osmTop?.extratags?.capacity
+          ? parseInt(osmTop.extratags.capacity, 10) || null
+          : null),
+      opened_year: wd?.openedYear || null,
+      architect_or_acoustics: osmTop?.extratags?.architect || null,
+      website_url: website,
+      calendar_url: calendarUrl || website,
+      photo_url: sum.thumbnail?.source || null,
+      short_bio: sum.extract.slice(0, 420),
+      wikidata_qid: sum.wikibase_item || null,
+      source_url: sum.content_urls?.desktop?.page || website || null,
+      sources,
+    });
+  }
+
+  if (out.length === 0 && osmTop) {
+    const wd = osmTop.extratags?.wikidata
+      ? wdVenueMeta.get(osmTop.extratags.wikidata)
+      : undefined;
+    const website = wd?.website || osmTop.extratags?.website || null;
+    const calendarUrl = website ? await discoverCalendarUrl(website) : null;
+    const cleanName =
+      osmTop.name || osmTop.display_name.split(",")[0].trim() || query.trim();
+
+    out.push({
+      id: `osm:${osmTop.place_id}`,
+      name: cleanName,
+      short_name: cleanName.slice(0, 32),
+      city: osmCity || cityHint || "Unknown City",
+      country: osmCountry || "International",
+      country_code: osmCode,
+      latitude: Number(osmTop.lat),
+      longitude: Number(osmTop.lon),
+      capacity: wd?.capacity || null,
+      opened_year: wd?.openedYear || null,
+      architect_or_acoustics: osmTop.extratags?.architect || null,
+      website_url: website,
+      calendar_url: calendarUrl || website,
+      photo_url: null,
+      short_bio: `${cleanName} — concert venue in ${osmCity || "city"}, ${osmCountry || ""}.`,
+      wikidata_qid: osmTop.extratags?.wikidata || null,
+      source_url: website,
+      sources: calendarUrl
+        ? ["OpenStreetMap", "Calendar Page"]
+        : ["OpenStreetMap"],
     });
   }
 
