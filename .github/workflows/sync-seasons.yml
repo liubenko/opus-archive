@@ -39,12 +39,15 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          MAX_JITTER_MINUTES: "35"
           ENABLE_PLAYWRIGHT: "1"
           CUSTOM_SEASON_URL: ${{ github.event.inputs.custom_url }}
           CRAWL_BATCH: ${{ github.event.inputs.crawl_batch || '20' }}
         run: |
           if [ -n "$CUSTOM_SEASON_URL" ]; then
-            node scripts/sync-seasons.mjs "--url=$CUSTOM_SEASON_URL" --playwright
+            node scripts/sync-seasons.mjs "--url=$CUSTOM_SEASON_URL" --playwright --no-jitter
           else
             node scripts/sync-seasons.mjs "--crawl-batch=$CRAWL_BATCH" --playwright
           fi

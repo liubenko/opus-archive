@@ -7,6 +7,7 @@ import {
   parseNyPhilPrograms,
   splitComposerAndWork,
 } from "../../../../../scripts/lib/season-parser.mjs";
+import { createPoliteSession } from "../../../../../scripts/lib/polite-fetcher.mjs";
 import {
   resolvePerformerTourUrl,
   stageIncomingEvents,
@@ -17,24 +18,6 @@ export const dynamic = "force-dynamic";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
-const UA =
-  "Mozilla/5.0 (compatible; OpusArchiveSeasonSync/2.0; +https://github.com/liubenko/opus-archive)";
-
-async function fetchUrlTextSafe(url: string, timeoutMs = 8000): Promise<string | null> {
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-    const res = await fetch(url, {
-      headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
-      signal: ctrl.signal,
-    });
-    clearTimeout(timer);
-    if (!res.ok) return null;
-    return await res.text();
-  } catch {
-    return null;
-  }
-}
 
 export async function POST(request: Request) {
   const authHeader = request.headers.get("Authorization");
@@ -136,13 +119,27 @@ export async function POST(request: Request) {
         .eq("id", perf.id);
     }
 
-    const html = await fetchUrlTextSafe(tourUrl, 9000);
-    if (!html) {
+    const polite = createPoliteSession({
+      minDelayMs: 1200,
+      maxDelayMs: 2600,
+      timeoutMs: 9000,
+      firecrawlApiKey: process.env.FIRECRAWL_API_KEY || "",
+    });
+    const fetchRes = await polite.fetchText(tourUrl, {
+      skipDelay: true,
+      allowFirecrawlFallback: true,
+    });
+    if (!fetchRes.ok || !fetchRes.text) {
       return NextResponse.json(
-        { error: `Could not reach ${tourUrl} (site may block bots or require JS — weekly Playwright job will retry).` },
-        { status: 502 }
+        {
+          error: fetchRes.blocked
+            ? `Circuit breaker triggered for ${tourUrl} (${fetchRes.reason}). Stopped immediately to protect IP — wait until next run or crawl from a residential IP.`
+            : `Could not reach ${tourUrl} (${fetchRes.reason || "timeout"}).`,
+        },
+        { status: fetchRes.blocked ? 429 : 502 }
       );
     }
+    const html = fetchRes.text;
 
     const { events: rawEvents, tierUsed } = extractEventsMultiTier(
       html,
@@ -216,7 +213,15 @@ export async function POST(request: Request) {
       proposedPerformers: 0,
       proposedVenues: 0,
       proposedWorks: 0,
+      blockedHosts: [] as { host: string; status: number; reason: string }[],
     };
+
+    const polite = createPoliteSession({
+      minDelayMs: 1200,
+      maxDelayMs: 2800,
+      timeoutMs: 7000,
+      firecrawlApiKey: process.env.FIRECRAWL_API_KEY || "",
+    });
 
     const nowIso = new Date().toISOString();
 
@@ -245,10 +250,12 @@ export async function POST(request: Request) {
           country: v.country,
         }));
       } else if (v.calendar_url) {
-        const html = await fetchUrlTextSafe(v.calendar_url, 6500);
-        if (html) {
+        const fetchRes = await polite.fetchText(v.calendar_url, {
+          allowFirecrawlFallback: true,
+        });
+        if (fetchRes.ok && fetchRes.text) {
           const { events, tierUsed } = extractEventsMultiTier(
-            html,
+            fetchRes.text,
             v.calendar_url
           );
           if (tierUsed !== "none") detectedFeed = tierUsed;
@@ -283,6 +290,11 @@ export async function POST(request: Request) {
       }
     }
 
+    totals.blockedHosts = polite.getBlockedSummary().map((b) => ({
+      host: b.host,
+      status: b.status,
+      reason: b.reason,
+    }));
     return NextResponse.json({ mode: "venue_batch", ...totals });
   }
 
@@ -340,13 +352,27 @@ export async function POST(request: Request) {
       });
     }
 
-    const text = await fetchUrlTextSafe(body.url, 9000);
-    if (!text) {
+    const polite = createPoliteSession({
+      minDelayMs: 1200,
+      maxDelayMs: 2600,
+      timeoutMs: 9000,
+      firecrawlApiKey: process.env.FIRECRAWL_API_KEY || "",
+    });
+    const fetchRes = await polite.fetchText(body.url, {
+      skipDelay: true,
+      allowFirecrawlFallback: true,
+    });
+    if (!fetchRes.ok || !fetchRes.text) {
       return NextResponse.json(
-        { error: "Target URL could not be fetched or timed out." },
-        { status: 502 }
+        {
+          error: fetchRes.blocked
+            ? `Circuit breaker tripped for this host (${fetchRes.reason}) — stopped immediately to protect IP.`
+            : `Target URL could not be fetched (${fetchRes.reason || "timeout"}).`,
+        },
+        { status: fetchRes.blocked ? 429 : 502 }
       );
     }
+    const text = fetchRes.text;
 
     let defaultPerf: {
       id: number;

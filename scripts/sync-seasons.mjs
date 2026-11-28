@@ -26,9 +26,19 @@ import {
   compareConcertAgainstExisting,
   computeCanonicalFingerprint,
   extractEventsMultiTier,
+  fetchKyivPhilharmonicEvents,
   matchCatalogVenue,
   parseNyPhilPrograms,
 } from "./lib/season-parser.mjs";
+import {
+  BROWSER_USER_AGENT,
+  createPoliteSession,
+  inferAcceptLanguageForHost,
+  getHostname,
+  normalizeUrlForDelta,
+  randomBetween,
+  sleepMs,
+} from "./lib/polite-fetcher.mjs";
 
 function loadDotEnvIfNeeded() {
   if (process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) return;
@@ -76,23 +86,68 @@ const CRAWL_BATCH = batchArg
 const customUrlArg = process.argv.find((a) => a.startsWith("--url="));
 const CUSTOM_URL = customUrlArg ? customUrlArg.slice("--url=".length) : null;
 
-const UA =
-  "Mozilla/5.0 (compatible; OpusArchiveSeasonSync/2.0; +https://github.com/liubenko/opus-archive)";
+const NO_JITTER =
+  process.argv.includes("--no-jitter") || Boolean(CUSTOM_URL);
+const SHOULD_JITTER =
+  !NO_JITTER &&
+  (process.argv.includes("--jitter") ||
+    process.env.GITHUB_EVENT_NAME === "schedule");
+const MAX_JITTER_MINUTES = Math.min(
+  45,
+  Math.max(1, parseInt(process.env.MAX_JITTER_MINUTES || "35", 10) || 35)
+);
+
+const politeSession = createPoliteSession({
+  minDelayMs: 3200,
+  maxDelayMs: 9500,
+  timeoutMs: 10000,
+  firecrawlApiKey: process.env.FIRECRAWL_API_KEY || "",
+});
+
+const WIKI_UA =
+  "OpusArchive/2.0 (https://github.com/liubenko/opus-archive; classical catalog enrichment)";
 
 let playwrightBrowser = null;
 
 async function getPlaywrightHtml(url) {
   if (!USE_PLAYWRIGHT) return null;
+  if (politeSession.isHostBlocked(url)) {
+    console.warn(`   [circuit-breaker] Skipping Playwright for blocked host ${getHostname(url)}`);
+    return null;
+  }
   try {
     if (!playwrightBrowser) {
       const pw = await import("playwright");
       playwrightBrowser = await pw.chromium.launch({ headless: true });
     }
-    const page = await playwrightBrowser.newPage({ userAgent: UA });
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
-    await page.waitForTimeout(2200);
+    const host = getHostname(url);
+    const context = await playwrightBrowser.newContext({
+      userAgent: BROWSER_USER_AGENT,
+      locale: inferAcceptLanguageForHost(host).split(",")[0] || "en-US",
+      extraHTTPHeaders: {
+        "Accept-Language": inferAcceptLanguageForHost(host),
+      },
+    });
+    const page = await context.newPage();
+    const resp = await page.goto(url, {
+      waitUntil: "domcontentloaded",
+      timeout: 15000,
+    });
+    const status = resp?.status() || 0;
+    if (status === 403 || status === 429 || status === 503) {
+      politeSession.tripBreaker(
+        host,
+        status,
+        resp?.headers()?.["retry-after"] || null,
+        `Playwright HTTP ${status}`
+      );
+      await context.close();
+      return null;
+    }
+    // Randomized human settle wait (2.2s - 4.8s) instead of a fixed interval
+    await page.waitForTimeout(randomBetween(2200, 4800));
     const content = await page.content();
-    await page.close();
+    await context.close();
     return content;
   } catch (err) {
     console.warn(`   [Playwright fallback skipped for ${url}]: ${err.message}`);
@@ -101,35 +156,49 @@ async function getPlaywrightHtml(url) {
 }
 
 async function fetchAndExtractMultiTier(url, options = {}) {
-  let rawHtml = null;
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 9000);
-    const res = await fetch(url, {
-      headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
-      signal: ctrl.signal,
-    });
-    clearTimeout(timer);
-    if (res.ok) rawHtml = await res.text();
-  } catch {
-    // Will try Playwright if enabled
+  const fetchRes = await politeSession.fetchText(url, {
+    allowFirecrawlFallback: true,
+    referer: options.referer,
+  });
+
+  if (fetchRes.ok && fetchRes.text) {
+    const tier12 = extractEventsMultiTier(fetchRes.text, url, options);
+    if (tier12.events.length > 0) {
+      return {
+        events: tier12.events,
+        tierUsed:
+          fetchRes.via === "firecrawl"
+            ? `firecrawl+${tier12.tierUsed}`
+            : tier12.tierUsed,
+        blocked: false,
+      };
+    }
   }
 
-  if (rawHtml) {
-    const tier12 = extractEventsMultiTier(rawHtml, url, options);
-    if (tier12.events.length > 0) return tier12;
+  // Circuit breaker: NEVER hammer a 403 / 429 / 503 / WAF-blocked host with Playwright!
+  if (fetchRes.blocked) {
+    return {
+      events: [],
+      tierUsed: "blocked",
+      blocked: true,
+      blockReason: fetchRes.reason,
+    };
   }
 
-  // Tier 3: Headless Chromium rendering for JS-rendered calendars
+  // Tier 3: Headless Chromium rendering ONLY when HTTP fetch returned a JS-rendered shell
   const renderedHtml = await getPlaywrightHtml(url);
   if (renderedHtml) {
     const tier3 = extractEventsMultiTier(renderedHtml, url, options);
     if (tier3.events.length > 0) {
-      return { events: tier3.events, tierUsed: `playwright+${tier3.tierUsed}` };
+      return {
+        events: tier3.events,
+        tierUsed: `playwright+${tier3.tierUsed}`,
+        blocked: false,
+      };
     }
   }
 
-  return { events: [], tierUsed: "none" };
+  return { events: [], tierUsed: "none", blocked: politeSession.isHostBlocked(url) };
 }
 
 async function fetchAllRows(table, columns) {
@@ -155,7 +224,7 @@ async function fetchWikiSummary(query) {
       `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(
         query
       )}&limit=1&namespace=0&format=json`,
-      { headers: { "User-Agent": UA } }
+      { headers: { "User-Agent": WIKI_UA } }
     );
     if (!searchRes.ok) return null;
     const tuple = await searchRes.json();
@@ -165,7 +234,7 @@ async function fetchWikiSummary(query) {
       `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
         title.replace(/ /g, "_")
       )}`,
-      { headers: { "User-Agent": UA } }
+      { headers: { "User-Agent": WIKI_UA } }
     );
     if (!sumRes.ok) return null;
     return await sumRes.json();
@@ -175,7 +244,17 @@ async function fetchWikiSummary(query) {
 }
 
 async function main() {
-  console.log("=== Opus Archive World Stage 2.0 Crawler ===");
+  console.log("=== Opus Archive World Stage 2.0 Polite Crawler ===");
+
+  // Habit 1: Randomize scheduled start time (1–35 min jitter) so cron never hits on exact :00 timestamps
+  if (SHOULD_JITTER) {
+    const jitterMs = randomBetween(60_000, MAX_JITTER_MINUTES * 60_000);
+    console.log(
+      `Applying randomized startup jitter: waiting ${(jitterMs / 60_000).toFixed(1)} min before first request...`
+    );
+    await sleepMs(jitterMs);
+  }
+
   const nowIso = new Date().toISOString();
 
   // 1. Ensure all Top 100 Venues exist in `public.venues`
@@ -210,8 +289,8 @@ async function main() {
     );
   }
 
-  // 2. Load catalog & live events for cross-source deduplication
-  const [venues, performers, composers, works, liveEvents, epRows, ewRows] =
+  // 2. Load catalog, live events & existing staged proposals for delta scraping + deduplication
+  const [venues, performers, composers, works, liveEvents, stagedProposals, epRows, ewRows] =
     await Promise.all([
       fetchAllRows("venues", "*"),
       fetchAllRows("performers", "*"),
@@ -224,9 +303,22 @@ async function main() {
         "id, composer_id, title, slug, catalog_system, catalog_number"
       ),
       fetchAllRows("concert_events", "*"),
+      fetchAllRows("concert_event_proposals", "id, dedup_key, source_url, ticket_url, status"),
       fetchAllRows("concert_event_performers", "event_id, performer_id"),
       fetchAllRows("concert_event_works", "event_id, raw_work_title"),
     ]);
+
+  // Habit 2 (Delta Scraping): Build set of already-saved event URLs so we never re-process known concerts
+  const knownEventUrls = new Set();
+  for (const ev of liveEvents) {
+    if (ev.source_url) knownEventUrls.add(normalizeUrlForDelta(ev.source_url));
+    if (ev.ticket_url) knownEventUrls.add(normalizeUrlForDelta(ev.ticket_url));
+  }
+  for (const prop of stagedProposals) {
+    if (prop.source_url) knownEventUrls.add(normalizeUrlForDelta(prop.source_url));
+    if (prop.ticket_url) knownEventUrls.add(normalizeUrlForDelta(prop.ticket_url));
+  }
+  console.log(`   Delta cache loaded: ${knownEventUrls.size} known concert URLs.`);
 
   const perfById = new Map(performers.map((p) => [p.id, p]));
   const perfByNorm = new Map(performers.map((p) => [normalizeText(p.name), p]));
@@ -319,13 +411,20 @@ async function main() {
   let stagedNew = 0;
   let stagedMerges = 0;
   let skippedDups = 0;
+  let deltaSkipped = 0;
   let proposedEntities = 0;
   let proposedWorks = 0;
 
   for (const job of crawlJobs) {
+    if (politeSession.isHostBlocked(job.url)) {
+      console.warn(`-> Skipping [${job.kind}] ${job.label} (circuit breaker open for host)`);
+      continue;
+    }
+
     console.log(`-> Crawling [${job.kind}] ${job.label}...`);
     let events = [];
     let tierUsed = "none";
+    let wasBlocked = false;
 
     if (job.kind === "nyphil_json") {
       try {
@@ -338,12 +437,20 @@ async function main() {
       } catch (e) {
         console.warn("   NYPhil fetch failed:", e.message);
       }
+    } else if (job.venue?.feed_type === "kyiv_phil_wp" || /philarmonia\.com\.ua/i.test(job.url)) {
+      try {
+        events = await fetchKyivPhilharmonicEvents(12);
+        tierUsed = "kyiv_phil_wp";
+      } catch (e) {
+        console.warn("   Kyiv Philharmonic WP API fetch failed:", e.message);
+      }
     } else {
       const res = await fetchAndExtractMultiTier(job.url, {
         defaultTitlePrefix: job.performer?.name || "",
       });
       events = res.events.slice(0, 18);
       tierUsed = res.tierUsed;
+      wasBlocked = Boolean(res.blocked);
     }
 
     if (job.venue) {
@@ -351,7 +458,10 @@ async function main() {
         .from("venues")
         .update({
           last_synced_at: nowIso,
-          feed_type: tierUsed !== "none" ? tierUsed : job.venue.feed_type,
+          feed_type:
+            tierUsed !== "none" && tierUsed !== "blocked"
+              ? tierUsed
+              : job.venue.feed_type,
         })
         .eq("id", job.venue.id);
     }
@@ -360,14 +470,38 @@ async function main() {
         .from("performers")
         .update({
           last_synced_at: nowIso,
-          feed_type: tierUsed !== "none" ? tierUsed : job.performer.feed_type,
+          feed_type:
+            tierUsed !== "none" && tierUsed !== "blocked"
+              ? tierUsed
+              : job.performer.feed_type,
         })
         .eq("id", job.performer.id);
+    }
+
+    if (wasBlocked) {
+      console.warn(`   Host blocked (${job.label}) — circuit breaker tripped; skipping remaining work for this host.`);
+      continue;
     }
 
     console.log(`   Extracted ${events.length} events (tier: ${tierUsed})`);
 
     for (const ev of events) {
+      // Habit 2 (Delta Scraping): Skip events whose specific concert detail URL is already in DB or staging
+      const evSourceNorm =
+        ev.sourceUrl && normalizeUrlForDelta(ev.sourceUrl) !== normalizeUrlForDelta(job.url)
+          ? normalizeUrlForDelta(ev.sourceUrl)
+          : "";
+      const evTicketNorm =
+        ev.ticketUrl && normalizeUrlForDelta(ev.ticketUrl) !== normalizeUrlForDelta(job.url)
+          ? normalizeUrlForDelta(ev.ticketUrl)
+          : "";
+      if (
+        (evSourceNorm && knownEventUrls.has(evSourceNorm)) ||
+        (evTicketNorm && knownEventUrls.has(evTicketNorm))
+      ) {
+        deltaSkipped++;
+        continue;
+      }
       if (job.venue && !ev.venueId) {
         ev.venueId = job.venue.id;
         ev.venueName = job.venue.short_name || job.venue.name;
@@ -617,9 +751,13 @@ async function main() {
     await playwrightBrowser.close();
   }
 
+  const blockedList = politeSession.getBlockedSummary();
   console.log(
-    `Done! Staged ${stagedNew} new concerts · ${stagedMerges} cross-source merge diffs · ${skippedDups} exact duplicates skipped · ${proposedEntities} new performer/venue proposals · ${proposedWorks} new work proposals.`
+    `Done! Staged ${stagedNew} new concerts · ${stagedMerges} cross-source merge diffs · ${deltaSkipped} delta-skipped (already known URLs) · ${skippedDups} exact duplicates skipped · ${proposedEntities} new performer/venue proposals · ${proposedWorks} new work proposals · ${blockedList.length} hosts paused by circuit breaker.`
   );
+  if (blockedList.length > 0) {
+    console.log("Circuit-breaker paused hosts:", JSON.stringify(blockedList));
+  }
 }
 
 main().catch((err) => {
