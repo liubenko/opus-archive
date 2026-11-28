@@ -420,7 +420,7 @@ async function searchMultilingualWikipedia(
       searchWikiEditionSummaries("uk", q, limit),
       searchWikiEditionSummaries("en", latinQuery, 2),
     ]);
-    primaryResults = [...enHits, ...ukHits];
+    primaryResults = [...ukHits, ...enHits];
   } else {
     const queries = options?.enSuffix
       ? [
@@ -431,8 +431,17 @@ async function searchMultilingualWikipedia(
     const batches = await Promise.all(queries);
     primaryResults = batches.flat();
 
-    // If English Wikipedia has zero matches, fan out across major European editions
-    if (primaryResults.length === 0) {
+    // If English Wikipedia has zero title-matching hits, fan out across major European editions
+    const qTokens = q
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((t) => t.length >= 3);
+    const hasTitleMatch = primaryResults.some((item) => {
+      const tLow = (item.title || "").toLowerCase();
+      return qTokens.length === 0 || qTokens.some((tok) => tLow.includes(tok));
+    });
+
+    if (primaryResults.length === 0 || !hasTitleMatch) {
       const regional = await Promise.all([
         searchWikiEditionSummaries("uk", q, 2),
         searchWikiEditionSummaries("de", q, 2),
@@ -440,17 +449,56 @@ async function searchMultilingualWikipedia(
         searchWikiEditionSummaries("it", q, 1),
         searchWikiEditionSummaries("pl", q, 1),
       ]);
-      primaryResults = regional.flat();
+      primaryResults = hasTitleMatch
+        ? [...primaryResults, ...regional.flat()]
+        : [...regional.flat(), ...primaryResults];
     }
   }
 
-  // Deduplicate by Wikidata QID (preferring English extract when both exist, while keeping thumbnail!)
+  // Filter out full-text body-mention false positives where the article title has zero overlap with query tokens
+  const rawTokens = q
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((t) => t.length >= 3);
+  const latinTokens = latinQuery
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 3);
+  // Require the last token (surname / main noun) or at least one 4+ char token to appear in title
+  const surnameRaw = rawTokens[rawTokens.length - 1] || "";
+  const surnameLat = latinTokens[latinTokens.length - 1] || "";
+
+  const filteredResults = primaryResults.filter((item) => {
+    const titleRaw = (item.title || "").toLowerCase();
+    const titleLat = transliterateCyrillic(item.title || "").toLowerCase();
+    if (surnameRaw && (titleRaw.includes(surnameRaw) || titleLat.includes(surnameRaw))) {
+      return true;
+    }
+    if (
+      surnameLat &&
+      surnameLat.length >= 3 &&
+      (titleLat.includes(surnameLat) ||
+        titleLat.includes(surnameLat.slice(0, Math.max(4, surnameLat.length - 2))))
+    ) {
+      return true;
+    }
+    return rawTokens.some(
+      (tok) => tok.length >= 4 && (titleRaw.includes(tok) || titleLat.includes(tok))
+    );
+  });
+
+  // Deduplicate by Wikidata QID (preferring English extract ONLY when both articles match the person/topic, keeping thumbnail)
   const byKey = new Map<string, WikiSummaryWithLang>();
-  for (const item of primaryResults) {
+  for (const item of filteredResults) {
     const key = item.wikibase_item || `${item.wikiLang}:${item.title}`;
     const existing = byKey.get(key);
     if (!existing) {
       byKey.set(key, item);
+    } else if (existing.wikiLang !== "en" && item.wikiLang === "en" && item.extract) {
+      byKey.set(key, {
+        ...item,
+        thumbnail: item.thumbnail?.source ? item.thumbnail : existing.thumbnail,
+      });
     } else if (!existing.thumbnail?.source && item.thumbnail?.source) {
       byKey.set(key, { ...existing, thumbnail: item.thumbnail });
     }
@@ -1510,19 +1558,17 @@ export async function lookupPerformerCandidates(
     const sum = summaries[i];
     if (!sum || !sum.extract || sum.type === "disambiguation") continue;
     const wd = sum.wikibase_item ? wdMeta.get(sum.wikibase_item) : undefined;
-    const combined = `${sum.description || ""} ${wd?.descEn || ""} ${wd?.descUk || ""} ${sum.extract} ${kyivRoster?.instrumentHint || ""}`;
+    const wikiOnlyText = `${sum.description || ""} ${wd?.descEn || ""} ${wd?.descUk || ""} ${sum.extract}`;
 
     const hasMusicalWdClaim =
       (wd?.instrumentQids.length ?? 0) > 0 ||
       (wd?.occupationQids.some((id) => Boolean(WIKIDATA_OCCUPATIONS[id])) ?? false);
 
-    if (
-      summaries.length > 1 &&
-      !hasMusicalWdClaim &&
-      !PERFORMER_RELEVANCE_REGEX.test(combined)
-    ) {
+    if (!hasMusicalWdClaim && !PERFORMER_RELEVANCE_REGEX.test(wikiOnlyText)) {
       continue;
     }
+
+    const combined = `${wikiOnlyText} ${kyivRoster?.instrumentHint || ""}`;
 
     const displayName = normalizeBiographicalDisplayName(
       String(sum.title || q),
