@@ -3,9 +3,95 @@
  * Prevents duplicate composers and works across OpenOpus, MusicBrainz, and manual seeds.
  */
 
+const CYRILLIC_INITIAL_MAP = {
+  є: "ye",
+  ї: "yi",
+  й: "y",
+  ю: "yu",
+  я: "ya",
+};
+
+const CYRILLIC_MAP = {
+  а: "a",
+  б: "b",
+  в: "v",
+  г: "h",
+  ґ: "g",
+  д: "d",
+  е: "e",
+  є: "ie",
+  ё: "yo",
+  ж: "zh",
+  з: "z",
+  и: "y",
+  і: "i",
+  ї: "i",
+  й: "i",
+  к: "k",
+  л: "l",
+  м: "m",
+  н: "n",
+  о: "o",
+  п: "p",
+  р: "r",
+  с: "s",
+  т: "t",
+  у: "u",
+  ф: "f",
+  х: "kh",
+  ц: "ts",
+  ч: "ch",
+  ш: "sh",
+  щ: "shch",
+  ъ: "",
+  ы: "y",
+  ь: "",
+  э: "e",
+  ю: "iu",
+  я: "ia",
+  є̈: "yo",
+  ђ: "dj",
+  ј: "j",
+  љ: "lj",
+  њ: "nj",
+  ћ: "c",
+  џ: "dz",
+};
+
+/**
+ * Transliterates Ukrainian / Slavic Cyrillic characters into clean Latin
+ * (Ukrainian official standard: e.g. "Юрій Шутко" -> "Yurii Shutko",
+ * "Ольга Чубарева" -> "Olha Chubareva", "Андрій Остапенко" -> "Andrii Ostapenko").
+ */
+export function transliterateCyrillic(str) {
+  if (!str) return "";
+  const input = String(str).replace(/['’ʼ`]/g, "");
+  let out = "";
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    const lower = ch.toLowerCase();
+    const isUpper = ch !== lower;
+    const isWordStart = i === 0 || !/\p{L}/u.test(input[i - 1]);
+    const mapped =
+      isWordStart && CYRILLIC_INITIAL_MAP[lower] !== undefined
+        ? CYRILLIC_INITIAL_MAP[lower]
+        : CYRILLIC_MAP[lower];
+
+    if (mapped !== undefined) {
+      if (!mapped) continue;
+      out += isUpper
+        ? mapped[0].toUpperCase() + mapped.slice(1)
+        : mapped;
+    } else {
+      out += ch;
+    }
+  }
+  return out;
+}
+
 export function normalizeText(str) {
   if (!str) return "";
-  return String(str)
+  return transliterateCyrillic(String(str))
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
@@ -13,7 +99,7 @@ export function normalizeText(str) {
 }
 
 export function slugify(text) {
-  return String(text || "")
+  return transliterateCyrillic(String(text || ""))
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()

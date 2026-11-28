@@ -47,6 +47,7 @@ import type {
 } from "@/lib/stage-staging";
 import { ERA_ORDER } from "@/lib/constants";
 import { ComposerAvatar } from "@/components/ComposerAvatar";
+import { slugify } from "../../../scripts/lib/dedup.mjs";
 
 const WORK_GENRES = [
   "Orchestral",
@@ -68,15 +69,6 @@ const PERFORMER_ROLES = [
   { value: "orchestra", label: "Orchestra" },
   { value: "ensemble", label: "Ensemble / Choir" },
 ] as const;
-
-function slugify(text: string) {
-  return text
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
 
 interface AdminWorldStageTabProps {
   composers: Composer[];
@@ -380,6 +372,13 @@ export function AdminWorldStageTab({
 
       const patch: Partial<Omit<StageEntityProposal, "id">> = {};
       if (prop.entity_type === "performer") {
+        if (
+          top.name &&
+          /[А-Яа-яІіЇїЄєҐґ]/.test(prop.name) &&
+          !/[А-Яа-яІіЇїЄєҐґ]/.test(top.name)
+        ) {
+          patch.name = top.name;
+        }
         if (top.performer_type) patch.performer_type = top.performer_type;
         if (top.instrument_or_role) {
           patch.instrument_or_role = top.instrument_or_role;
