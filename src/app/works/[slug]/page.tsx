@@ -336,7 +336,25 @@ export default async function WorkDetailPage({ params }: WorkPageProps) {
             />
 
             <AdminWorkEnrichButton
-              workId={work.id}
+              work={{
+                id: work.id,
+                title: work.title,
+                nickname: work.nickname,
+                genre: work.genre,
+                year_composed: work.year_composed,
+                key_signature: work.key_signature,
+                duration_minutes: work.duration_minutes,
+                movements_count: effectiveMovementsCount,
+                catalog_system: work.catalog_system,
+                catalog_number: work.catalog_number,
+                instrumentation: work.instrumentation,
+                description: work.description,
+                imslp_url: work.imslp_url,
+                youtube_url: work.youtube_url,
+                spotify_url: work.spotify_url,
+                apple_music_url: work.apple_music_url,
+                is_popular: work.is_popular,
+              }}
               missingFields={[
                 !work.year_composed ? "Year" : null,
                 !work.key_signature ? "Key" : null,
